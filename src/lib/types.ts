@@ -14,6 +14,7 @@ export interface StepDef {
   gate: boolean;
   gpu: boolean;
   preview: string;
+  agent: string;
 }
 
 export interface Pool {
@@ -50,6 +51,9 @@ export interface ProjectConfig {
   pool: Pool;
   steps: StepDef[];
   text: TextStyle;
+  run_mode: "steps" | "agent";
+  flow_agent: string;
+  flow_prompt: string;
 }
 
 export interface Project {
@@ -136,3 +140,24 @@ export interface StatusEvent {
 }
 
 export type Settings = Record<string, string>;
+
+export interface Agent {
+  id: number;
+  name: string;
+  title: string;
+  description: string;
+  provider: string;
+  model: string;
+  effort: string;
+  instructions: string;
+  command: string;
+  api_base: string;
+  is_default: boolean;
+  has_key: boolean;
+}
+
+export interface TestResult {
+  ok: boolean;
+  answer: string;
+  ms: number;
+}

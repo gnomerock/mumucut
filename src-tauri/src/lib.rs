@@ -2,6 +2,7 @@ pub mod ai;
 pub mod commands;
 pub mod db;
 pub mod ffcheck;
+pub mod flow;
 pub mod models;
 pub mod runner;
 pub mod state;
@@ -9,8 +10,6 @@ pub mod util;
 
 
 use state::AppState;
-use std::collections::HashMap;
-use std::sync::Mutex;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,19 +23,22 @@ pub fn run() {
             let dir = app.path().app_data_dir().expect("app data dir");
             std::fs::create_dir_all(&dir).expect("create app data dir");
             let conn = db::open(&dir.join("mumucut.db")).expect("open sqlite");
-            app.manage(AppState {
-                db: Mutex::new(conn),
-                running: Mutex::new(HashMap::new()),
-                data_dir: dir,
-            });
+            app.manage(AppState::new(conn, dir));
+            let handle = app.handle().clone();
+            tauri::async_runtime::block_on(flow::start_server(handle)).expect("start local tool server");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
             commands::set_setting,
-            commands::set_api_key,
-            commands::has_api_key,
-            commands::clear_api_key,
+            commands::list_agents,
+            commands::save_agent,
+            commands::delete_agent,
+            commands::set_default_agent,
+            commands::set_agent_key,
+            commands::clear_agent_key,
+            commands::test_agent,
+            commands::run_flow,
             commands::check_tools,
             commands::list_projects,
             commands::save_project,

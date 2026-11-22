@@ -9,6 +9,7 @@ const step = (s: Partial<StepDef> & { key: string; label: string; kind: StepDef[
   gate: false,
   gpu: false,
   preview: "",
+  agent: "",
   ...s,
 });
 
@@ -74,6 +75,9 @@ export const dhammaConfig = (_library = ""): ProjectConfig => ({
     ref_prefix: "ธรรมบท คาถาที่ ",
   },
   text: defaultText("Sarabun"),
+  run_mode: "agent",
+  flow_agent: "",
+  flow_prompt: "",
   steps: [
     step({ key: "pick", label: "เลือกหัวข้อ", kind: "pick", desc: "หยิบคาถาถัดไปที่ยังไม่ได้ใช้จากคลังหัวข้อ (ข้ามหัวข้อละเอียดอ่อน)" }),
     step({
@@ -167,6 +171,9 @@ export const blankConfig = (): ProjectConfig => ({
   extra_files: [],
   pool: { csv: "", ref_col: 0, title_col: 1, brief_cols: [], used_col: -1, rating_col: -1, skip_rating: "", ref_prefix: "" },
   text: defaultText(),
+  run_mode: "steps",
+  flow_agent: "",
+  flow_prompt: "",
   steps: [
     step({ key: "idea", label: "ไอเดีย/หัวข้อ", kind: "manual", desc: "ใส่หัวข้อในแท็บ ข้อมูล แล้วกดยืนยัน" }),
     step({ key: "script", label: "เขียนบท", kind: "ai", desc: "AI เขียนบท", prompt: "เขียนบทคลิปสั้นไม่เกิน 30 วินาทีเรื่อง {title}\n{brief}\nตอบเป็น JSON อย่างเดียว", output_file: "{key}_script.json" }),

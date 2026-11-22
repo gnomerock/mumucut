@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Bot, Check, Download, KeyRound, Palette, RefreshCw, Wrench, X } from "lucide-react";
+import { Check, Download, Palette, RefreshCw, Wrench, X } from "lucide-react";
 import { useApp, type Theme } from "@/lib/store";
 import { api, isTauri } from "@/lib/api";
 import type { ToolStatus } from "@/lib/types";
@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { currentVersion, installUpdate } from "@/lib/updater";
 import { PageHeader } from "@/components/common";
+import AgentsCard from "@/components/AgentsCard";
 import { cn } from "@/lib/utils";
 
 function SaveInput({ k, placeholder, mono = true }: { k: string; placeholder?: string; mono?: boolean }) {
@@ -30,7 +31,7 @@ function SaveInput({ k, placeholder, mono = true }: { k: string; placeholder?: s
 }
 
 export default function SettingsPage() {
-  const { theme, setTheme, settings, setSetting, err, notify, update, checkUpdate } = useApp();
+  const { theme, setTheme, settings, setSetting, err, update, checkUpdate } = useApp();
   const [version, setVersion] = useState("");
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [progress, setProgress] = useState<number | null | undefined>(undefined);
@@ -39,15 +40,11 @@ export default function SettingsPage() {
   }, []);
   const [tools, setTools] = useState<ToolStatus[] | null>(null);
   const [checking, setChecking] = useState(false);
-  const [hasKey, setHasKey] = useState(false);
-  const [key, setKey] = useState("");
-  const provider = settings.ai_provider ?? "cli";
 
   const check = useCallback(async () => {
     setChecking(true);
     try {
       setTools(await api.checkTools());
-      setHasKey(await api.hasApiKey());
     } catch (e) {
       err(e);
     } finally {
@@ -136,72 +133,7 @@ export default function SettingsPage() {
         </CardBody>
       </GlassCard>
 
-      <GlassCard>
-        <CardHeader>
-          <div>
-            <div className="flex items-center gap-2.5"><Bot className="size-4" /><CardTitle>AI ที่ใช้เขียนบทและออกแบบ</CardTitle></div>
-            <CardDesc className="mt-1">เลือกอย่างใดอย่างหนึ่ง ขั้นตอนชนิด AI จะเรียกตามที่เลือก</CardDesc>
-          </div>
-        </CardHeader>
-        <CardBody className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { id: "cli", title: "CLI ที่ล็อกอินไว้แล้ว", desc: "เรียกโปรแกรม agent ในเครื่อง (เช่น claude -p) เป็นโปรเซสลูก ไม่แตะข้อมูลล็อกอิน" },
-              { id: "api", title: "API key", desc: "เรียก Anthropic Messages API ด้วยคีย์ของคุณเอง" },
-            ].map((o) => (
-              <button
-                key={o.id}
-                onClick={() => setSetting("ai_provider", o.id).catch(err)}
-                className={cn("soft rounded-lg border p-3.5 text-left", provider === o.id ? "bg-[var(--glass-bg-strong)] ring-1 ring-ring" : "hover:bg-[var(--glass-bg-subtle)]")}
-              >
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <span className={cn("grid size-4 place-items-center rounded-full border", provider === o.id && "bg-primary text-primary-foreground")}>{provider === o.id && <Check className="size-3" />}</span>
-                  {o.title}
-                </div>
-                <div className="mt-1 text-[13px] text-muted-foreground">{o.desc}</div>
-              </button>
-            ))}
-          </div>
-          {provider === "cli" ? (
-            <Field label="คำสั่ง CLI" hint="รับ prompt ทาง stdin และตอบทาง stdout (ค่าเริ่มต้น: claude -p) เงื่อนไขการใช้งานของผู้ให้บริการยังไม่ได้ตรวจ โดยเฉพาะถ้าแจกจ่ายแอพ">
-              <SaveInput k="ai_cli_cmd" placeholder="claude -p" />
-            </Field>
-          ) : (
-            <div className="grid gap-4">
-              <Field label="API key" hint={hasKey ? "มีคีย์เก็บไว้แล้ว (ไม่แสดงกลับมา)" : "ยังไม่ได้ตั้ง"}>
-                <div className="flex gap-2">
-                  <Input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder={hasKey ? "••••••••••••" : "sk-ant-…"} />
-                  <Button
-                    disabled={!key.trim()}
-                    onClick={async () => {
-                      try {
-                        await api.setApiKey(key);
-                        setKey("");
-                        setHasKey(true);
-                        notify("บันทึกคีย์ลง Credential Manager แล้ว");
-                        void check();
-                      } catch (e) {
-                        err(e);
-                      }
-                    }}
-                  >
-                    <KeyRound /> บันทึก
-                  </Button>
-                  {hasKey && (
-                    <Button variant="glass" onClick={async () => { try { await api.clearApiKey(); setHasKey(false); void check(); } catch (e) { err(e); } }}>
-                      <X /> ลบคีย์
-                    </Button>
-                  )}
-                </div>
-              </Field>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="โมเดล"><SaveInput k="ai_api_model" placeholder="claude-sonnet-5-5" /></Field>
-                <Field label="Base URL"><SaveInput k="ai_api_base" placeholder="https://api.anthropic.com" /></Field>
-              </div>
-            </div>
-          )}
-        </CardBody>
-      </GlassCard>
+      <AgentsCard />
 
       <GlassCard>
         <CardHeader>

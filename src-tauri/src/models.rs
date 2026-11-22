@@ -34,6 +34,8 @@ pub struct StepDef {
     pub gpu: bool,
     /// image shown in the step card (relative to workdir)
     pub preview: String,
+    /// AI steps: id of the agent that answers (empty = the project's flow agent, then the default agent)
+    pub agent: String,
 }
 
 impl Default for StepDef {
@@ -50,6 +52,7 @@ impl Default for StepDef {
             gate: false,
             gpu: false,
             preview: String::new(),
+            agent: String::new(),
         }
     }
 }
@@ -97,6 +100,12 @@ pub struct Config {
     pub extra_files: Vec<String>,
     pub pool: Pool,
     pub steps: Vec<StepDef>,
+    /// "steps" = a person runs each step; "agent" = the flow agent runs the whole flow through MumuCut's tools
+    pub run_mode: String,
+    /// id of the agent that runs the flow (empty = default agent)
+    pub flow_agent: String,
+    /// standing orders for the flow agent (empty = built-in text)
+    pub flow_prompt: String,
 }
 
 impl Default for Config {
@@ -114,6 +123,9 @@ impl Default for Config {
             extra_files: vec![],
             pool: Pool::default(),
             steps: vec![],
+            run_mode: "steps".into(),
+            flow_agent: String::new(),
+            flow_prompt: String::new(),
         }
     }
 }
@@ -225,4 +237,33 @@ pub struct ToolStatus {
     pub name: String,
     pub ok: bool,
     pub detail: String,
+}
+
+/// An AI agent profile (like an OpenBot agent): who it is, which provider runs it, how it is told to behave.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct Agent {
+    pub id: i64,
+    pub name: String,
+    pub title: String,
+    pub description: String,
+    /// claude | codex | custom | anthropic-api | openai-api
+    pub provider: String,
+    pub model: String,
+    pub effort: String,
+    pub instructions: String,
+    /// custom CLI command (provider = custom)
+    pub command: String,
+    /// API base URL (api providers; empty = the provider's own)
+    pub api_base: String,
+    pub is_default: bool,
+    /// an API key is stored in the credential manager
+    pub has_key: bool,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct TestResult {
+    pub ok: bool,
+    pub answer: String,
+    pub ms: u64,
 }

@@ -34,22 +34,96 @@ pub fn set_setting(state: State<'_, AppState>, key: String, value: String) -> R<
     Ok(())
 }
 
+/// Let the flow agent run this clip through the flow (it stops at review gates and at failures).
 #[tauri::command]
-pub fn set_api_key(key: String) -> R<()> {
+pub async fn run_flow(app: AppHandle, state: State<'_, AppState>, clip_id: i64) -> R<String> {
+    crate::flow::run_flow(&app, &state, clip_id).await
+}
+
+// ---------- agents ----------
+#[tauri::command]
+pub fn list_agents(state: State<'_, AppState>) -> R<Vec<Agent>> {
+    let c = state.db.lock().unwrap();
+    db::list_agents(&c)
+}
+
+#[tauri::command]
+pub fn save_agent(state: State<'_, AppState>, agent: Agent) -> R<Agent> {
+    ai::validate(&agent)?;
+    let c = state.db.lock().unwrap();
+    let first: bool = c.query_row("SELECT COUNT(*) FROM agents", [], |r| r.get::<_, i64>(0)).map(|n| n == 0).unwrap_or(true);
+    let id = if agent.id > 0 {
+        c.execute(
+            "UPDATE agents SET name=?2, title=?3, description=?4, provider=?5, model=?6, effort=?7, instructions=?8, command=?9, api_base=?10 WHERE id=?1",
+            params![agent.id, agent.name.trim(), agent.title, agent.description, agent.provider, agent.model, agent.effort, agent.instructions, agent.command, agent.api_base],
+        )
+        .map_err(|e| e.to_string())?;
+        agent.id
+    } else {
+        c.execute(
+            "INSERT INTO agents (name, title, description, provider, model, effort, instructions, command, api_base, is_default) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            params![agent.name.trim(), agent.title, agent.description, agent.provider, agent.model, agent.effort, agent.instructions, agent.command, agent.api_base, first as i64],
+        )
+        .map_err(|e| e.to_string())?;
+        c.last_insert_rowid()
+    };
+    if agent.is_default {
+        c.execute("UPDATE agents SET is_default = (id = ?1)", params![id]).map_err(|e| e.to_string())?;
+    }
+    db::get_agent(&c, id).ok_or("บันทึก agent ไม่สำเร็จ".into())
+}
+
+#[tauri::command]
+pub fn delete_agent(state: State<'_, AppState>, id: i64) -> R<()> {
+    let c = state.db.lock().unwrap();
+    let n: i64 = c.query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0)).unwrap_or(0);
+    if n <= 1 {
+        return Err("ต้องเหลือ agent อย่างน้อยหนึ่งตัว".into());
+    }
+    c.execute("DELETE FROM agents WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
+    let any_default: i64 = c.query_row("SELECT COUNT(*) FROM agents WHERE is_default = 1", [], |r| r.get(0)).unwrap_or(0);
+    if any_default == 0 {
+        c.execute("UPDATE agents SET is_default = 1 WHERE id = (SELECT MIN(id) FROM agents)", []).map_err(|e| e.to_string())?;
+    }
+    let _ = ai::clear_key(id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_default_agent(state: State<'_, AppState>, id: i64) -> R<()> {
+    let c = state.db.lock().unwrap();
+    c.execute("UPDATE agents SET is_default = (id = ?1)", params![id]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_agent_key(id: i64, key: String) -> R<()> {
     if key.trim().is_empty() {
         return Err("คีย์ว่างเปล่า".into());
     }
-    ai::set_key(key.trim())
+    ai::set_key(id, key.trim())
 }
 
 #[tauri::command]
-pub fn has_api_key() -> bool {
-    ai::get_key().is_some()
+pub fn clear_agent_key(id: i64) -> R<()> {
+    ai::clear_key(id)
 }
 
+/// A one-word question to the agent: proves the provider, model, key and command all work.
 #[tauri::command]
-pub fn clear_api_key() -> R<()> {
-    ai::clear_key()
+pub async fn test_agent(state: State<'_, AppState>, id: i64) -> R<TestResult> {
+    let agent = {
+        let c = state.db.lock().unwrap();
+        db::get_agent(&c, id).ok_or("ไม่พบ agent")?
+    };
+    let started = std::time::Instant::now();
+    let cwd = state.data_dir.to_string_lossy().to_string();
+    let r = ai::complete(&state, &agent, "Reply with exactly the word OK and nothing else.", &cwd, |_, _| {}).await;
+    let ms = started.elapsed().as_millis() as u64;
+    match r {
+        Ok(a) => Ok(TestResult { ok: true, answer: a.trim().chars().take(200).collect(), ms }),
+        Err(e) => Ok(TestResult { ok: false, answer: e, ms }),
+    }
 }
 
 async fn version_of(path: &Path, arg: &str) -> String {
@@ -83,19 +157,33 @@ pub async fn check_tools(state: State<'_, AppState>) -> R<Vec<ToolStatus>> {
             None => out.push(ToolStatus { key: key.into(), name: name.into(), ok: false, detail: "ไม่พบใน PATH".into() }),
         }
     }
-    let cli = state.setting("ai_cli_cmd").unwrap_or_else(|| "claude -p".into());
-    let first = cli.split_whitespace().next().unwrap_or("claude").trim_matches('"').to_string();
-    match find_exe(&first, &extra) {
-        Some(p) => out.push(ToolStatus { key: "ai_cli".into(), name: format!("AI CLI ({first})"), ok: true, detail: norm_path(&p) }),
-        None => out.push(ToolStatus { key: "ai_cli".into(), name: format!("AI CLI ({first})"), ok: false, detail: "ไม่พบใน PATH".into() }),
+    let agents = db::list_agents(&state.db.lock().unwrap()).unwrap_or_default();
+    for a in agents {
+        let (ok, detail) = if ai::is_api(&a.provider) {
+            let keyless = a.provider == "openai-api" && ai::openai_keyless(&a.api_base);
+            let d = if a.has_key {
+                "มี API key ใน Credential Manager"
+            } else if keyless {
+                "เซิร์ฟเวอร์ในเครื่อง ไม่ต้องใช้คีย์"
+            } else {
+                "ยังไม่ได้ตั้ง API key"
+            };
+            (a.has_key || keyless, d.to_string())
+        } else {
+            let found = ai::cli_program(&a).and_then(|p| {
+                let bare = p.trim_end_matches(".cmd").trim_end_matches(".exe").to_string();
+                find_exe(&bare, &extra).or_else(|| {
+                    let pb = std::path::PathBuf::from(&p);
+                    if pb.is_file() { Some(pb) } else { None }
+                })
+            });
+            match found {
+                Some(p) => (true, norm_path(&p)),
+                None => (false, "ไม่พบโปรแกรมของ agent นี้ใน PATH".to_string()),
+            }
+        };
+        out.push(ToolStatus { key: format!("agent_{}", a.id), name: format!("AI agent {}", a.name), ok, detail });
     }
-    let ai_key = ai::get_key().is_some();
-    out.push(ToolStatus {
-        key: "ai_key".into(),
-        name: "AI API key".into(),
-        ok: ai_key,
-        detail: if ai_key { "เก็บไว้ใน Windows Credential Manager".into() } else { "ยังไม่ได้ตั้ง".into() },
-    });
     let comfy: u16 = state.setting("comfy_port").and_then(|v| v.parse().ok()).unwrap_or(8188);
     let voice: u16 = state.setting("voice_port").and_then(|v| v.parse().ok()).unwrap_or(3900);
     let (c_ok, v_ok) = tokio::task::spawn_blocking(move || (tcp_open("127.0.0.1", comfy), tcp_open("127.0.0.1", voice)))
@@ -317,14 +405,23 @@ pub async fn run_step(app: AppHandle, state: State<'_, AppState>, clip_id: i64, 
 
 #[tauri::command]
 pub fn cancel_step(state: State<'_, AppState>, clip_id: i64, step_key: String) -> R<bool> {
-    let pid = state.running.lock().unwrap().get(&(clip_id, step_key)).map(|r| r.pid);
-    match pid {
-        Some(p) if p > 0 => {
-            runner::kill_pid(p);
-            Ok(true)
+    // cancelling the flow agent also stops the step it is running for this clip
+    let pids: Vec<u32> = {
+        let r = state.running.lock().unwrap();
+        if step_key == "__flow__" {
+            r.iter().filter(|((c, _), _)| *c == clip_id).map(|(_, i)| i.pid).collect()
+        } else {
+            r.get(&(clip_id, step_key.clone())).map(|i| vec![i.pid]).unwrap_or_default()
         }
-        _ => Ok(false),
+    };
+    let mut any = false;
+    for p in pids {
+        if p > 0 {
+            runner::kill_pid(p);
+            any = true;
+        }
     }
+    Ok(any)
 }
 
 #[tauri::command]

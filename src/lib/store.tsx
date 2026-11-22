@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { AnimatePresence, motion } from "motion/react";
 import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { api } from "./api";
-import type { Clip, Project, Settings, Stats } from "./types";
+import type { Agent, Clip, Project, Settings, Stats } from "./types";
 import { checkForUpdate, type UpdateInfo } from "./updater";
 
 export type Page = "dashboard" | "clips" | "library" | "projects" | "settings";
@@ -24,6 +24,8 @@ interface Ctx {
   setProjectId: (id: number) => void;
   clips: Clip[];
   loading: boolean;
+  agents: Agent[];
+  refreshAgents: () => Promise<void>;
   stats: Stats | null;
   settings: Settings;
   setSetting: (k: string, v: string) => Promise<void>;
@@ -59,6 +61,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [clips, setClips] = useState<Clip[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [settings, setSettings] = useState<Settings>({});
   const [theme, setThemeState] = useState<Theme>((localStorage.getItem("theme") as Theme) || "system");
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
@@ -73,8 +76,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [p, s, st] = await Promise.all([api.projects(), api.settings(), api.stats()]);
+      const [p, s, st, ag] = await Promise.all([api.projects(), api.settings(), api.stats(), api.agents()]);
       setProjects(p);
+      setAgents(ag);
       setSettings(s);
       setStats(st);
       const pid = projectId && p.some((x) => x.id === projectId) ? projectId : p[0]?.id ?? null;
@@ -152,6 +156,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       clips,
       loading,
+      agents,
+      refreshAgents: async () => setAgents(await api.agents()),
       stats,
       settings,
       setSetting: async (k, v) => {
@@ -166,7 +172,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notify,
       err,
     }),
-    [update, checkUpdate, page, clipId, projects, projectId, clips, loading, stats, settings, theme, setTheme, refresh, notify, err],
+    [update, checkUpdate, page, clipId, projects, projectId, clips, loading, agents, stats, settings, theme, setTheme, refresh, notify, err],
   );
 
   return (

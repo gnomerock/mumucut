@@ -1,6 +1,7 @@
 import { invoke as tauriInvoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  Agent, TestResult,
   Clip, ClipDetail, LogEvent, Post, Project, Settings, Stats, StatusEvent, StepRow, StepStatus, ToolStatus,
 } from "./types";
 import { mockInvoke } from "./mock";
@@ -15,9 +16,14 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 export const api = {
   settings: () => call<Settings>("get_settings"),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
-  setApiKey: (key: string) => call<void>("set_api_key", { key }),
-  hasApiKey: () => call<boolean>("has_api_key"),
-  clearApiKey: () => call<void>("clear_api_key"),
+  agents: () => call<Agent[]>("list_agents"),
+  saveAgent: (agent: Agent) => call<Agent>("save_agent", { agent }),
+  deleteAgent: (id: number) => call<void>("delete_agent", { id }),
+  setDefaultAgent: (id: number) => call<void>("set_default_agent", { id }),
+  setAgentKey: (id: number, key: string) => call<void>("set_agent_key", { id, key }),
+  clearAgentKey: (id: number) => call<void>("clear_agent_key", { id }),
+  testAgent: (id: number) => call<TestResult>("test_agent", { id }),
+  runFlow: (clipId: number) => call<string>("run_flow", { clipId }),
   checkTools: () => call<ToolStatus[]>("check_tools"),
 
   projects: () => call<Project[]>("list_projects"),

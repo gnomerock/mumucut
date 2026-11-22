@@ -2,6 +2,7 @@ use crate::db;
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU16;
 use std::sync::Mutex;
 
 pub struct RunInfo {
@@ -13,9 +14,17 @@ pub struct AppState {
     pub db: Mutex<Connection>,
     pub running: Mutex<HashMap<(i64, String), RunInfo>>,
     pub data_dir: PathBuf,
+    /// token of a running flow agent -> the clip it may work on (checked by the local tool server)
+    pub flows: Mutex<HashMap<String, i64>>,
+    /// port of the local tool server (0 = not started)
+    pub mcp_port: AtomicU16,
 }
 
 impl AppState {
+    pub fn new(db: Connection, data_dir: PathBuf) -> Self {
+        AppState { db: Mutex::new(db), running: Mutex::new(HashMap::new()), data_dir, flows: Mutex::new(HashMap::new()), mcp_port: AtomicU16::new(0) }
+    }
+
     pub fn setting(&self, key: &str) -> Option<String> {
         let c = self.db.lock().unwrap();
         db::get_setting(&c, key).filter(|v| !v.trim().is_empty())

@@ -4,6 +4,7 @@ import {
   ArrowLeft, Ban, Bot, CalendarClock, Check, FileText, FolderOpen, Gauge, Hand, ListChecks, Play, RotateCcw, Save, Send, Sparkles, Terminal, Trash2, Undo2, Cpu, Eye,
 } from "lucide-react";
 import { useApp } from "@/lib/store";
+import { providerLabel } from "@/components/AgentsCard";
 import { api, fileUrl, onLog, onStatus, revealPath } from "@/lib/api";
 import type { ClipDetail, Clip, ClipStatus, StepDef, StepRow, Post } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,29 @@ export default function ClipPage() {
         </TabsList>
 
         <TabsContent value="flow" className="pt-4">
+          {project.config.run_mode === "agent" && (
+            <FlowAgentPanel
+              clip={clip}
+              row={rows.get("__flow__")}
+              live={live["__flow__"]}
+              running={rows.get("__flow__")?.status === "running" || !!busy["__flow__"]}
+              waiting={steps.find((x) => rows.get(x.key)?.status === "review")?.label}
+              onStart={async () => {
+                setLive((l) => ({ ...l, __flow__: [] }));
+                setBusy((b) => ({ ...b, __flow__: true }));
+                try {
+                  await api.runFlow(clip.id);
+                } catch (e) {
+                  err(e);
+                } finally {
+                  setBusy((b) => ({ ...b, __flow__: false }));
+                  await load();
+                  await refresh();
+                }
+              }}
+              onCancel={() => api.cancelStep(clip.id, "__flow__").catch(err)}
+            />
+          )}
           <div className="grid grid-cols-[270px_1fr] gap-4">
             <GlassCard className="self-start p-2">
               <ol className="relative grid">
@@ -570,5 +594,58 @@ function PostsTab({ clip, posts, onChange }: { clip: Clip; posts: Post[]; onChan
         </CardBody>
       </GlassCard>
     </div>
+  );
+}
+
+function FlowAgentPanel({ clip, row, live, running, waiting, onStart, onCancel }: { clip: Clip; row?: StepRow; live?: string[]; running: boolean; waiting?: string; onStart: () => void; onCancel: () => void }) {
+  const { project, agents } = useApp();
+  const agent = agents.find((a) => String(a.id) === project?.config.flow_agent) ?? agents.find((a) => a.is_default);
+  const lines = useMemo(() => (live && live.length ? live : (row?.log ?? "").split("\n").filter(Boolean)), [live, row?.log]);
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [lines.length]);
+  const finished = (project?.config.steps ?? []).length > 0 && clip.done_steps >= (project?.config.steps.length ?? 0);
+  return (
+    <GlassCard className="mb-4">
+      <CardHeader>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="text-base">agent คุม flow</CardTitle>
+            {agent && <Badge>{agent.name}</Badge>}
+            {agent && <Badge>{providerLabel(agent.provider)}</Badge>}
+            {agent?.model && <Badge>{agent.model}</Badge>}
+          </div>
+          <CardDesc className="mt-1">{waiting ? `agent หยุดรอคุณตรวจขั้นตอน ${waiting} เปิดดูผลทางซ้าย แล้วกดอนุมัติ จึงจะให้ agent ทำต่อได้` : "agent รันขั้นตอนตามลำดับ เขียนบทเอง และหยุดรอคุณที่จุดตรวจ (ขั้นตอนที่ติดป้าย ต้องตรวจ)"}</CardDesc>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {running ? (
+            <Button variant="glass" size="sm" onClick={onCancel}>
+              <Ban /> หยุด agent
+            </Button>
+          ) : (
+            <Button size="sm" onClick={onStart} disabled={!agent || finished || !!waiting} title={waiting ? `อนุมัติขั้นตอน ${waiting} ก่อน` : undefined}>
+              <Play /> {clip.done_steps > 0 ? "ให้ agent ทำต่อ" : "ให้ agent เริ่มทำ"}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      {(lines.length > 0 || running) && (
+        <CardBody className="pt-1">
+          <div className="glass-subtle console max-h-[300px] min-h-[96px] overflow-auto rounded-md p-3">
+            {lines.length === 0 ? (
+              <span className="text-muted-foreground">กำลังเริ่ม</span>
+            ) : (
+              lines.map((l, i) => (
+                <div key={i} className={cn("whitespace-pre-wrap break-words", l.startsWith("✗") ? "text-rose" : l.startsWith("✓") ? "text-success" : l.startsWith("เรียก ") ? "text-muted-foreground" : "")}>
+                  {l}
+                </div>
+              ))
+            )}
+            <div ref={end} />
+          </div>
+        </CardBody>
+      )}
+    </GlassCard>
   );
 }

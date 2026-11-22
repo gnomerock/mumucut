@@ -42,7 +42,10 @@ impl<R: Runtime> Logger<R> {
             LogEvent { clip_id: self.clip_id, step: self.step.clone(), stream: stream.into(), line: line.into() },
         );
     }
-    fn text(&self) -> String {
+    pub fn new(app: AppHandle<R>, clip_id: i64, step: &str) -> Self {
+        Logger { app, clip_id, step: step.into(), buf: Arc::new(Mutex::new(String::new())) }
+    }
+    pub fn text(&self) -> String {
         tail_chars(&self.buf.lock().unwrap(), LOG_CAP)
     }
 }
@@ -255,6 +258,17 @@ fn write_file(path: &Path, content: &str) -> Result<(), String> {
 }
 
 pub async fn execute<R: Runtime>(app: &AppHandle<R>, state: &AppState, clip_id: i64, step_key: &str) -> Result<StepRow, String> {
+    execute_with(app, state, clip_id, step_key, None).await
+}
+
+/// Run one step. `submitted` = the answer of an AI step written by the flow agent itself (no provider call is made).
+pub async fn execute_with<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    clip_id: i64,
+    step_key: &str,
+    submitted: Option<String>,
+) -> Result<StepRow, String> {
     let (project, clip) = {
         let c = state.db.lock().unwrap();
         let clip = db::get_clip(&c, clip_id)?;
@@ -314,16 +328,26 @@ pub async fn execute<R: Runtime>(app: &AppHandle<R>, state: &AppState, clip_id: 
             }
             "ai" => {
                 let prompt = subst(&def.prompt, &vars);
-                if prompt.trim().is_empty() {
-                    return Err("ยังไม่ได้ตั้ง prompt ของขั้นตอนนี้".into());
-                }
-                let provider = state.setting("ai_provider").unwrap_or_else(|| "cli".into());
-                logger.line("info", &format!("เรียก AI ผ่าน {}", if provider == "api" { "API key" } else { "CLI (subscription)" }));
-                let answer = if provider == "api" {
-                    ai::complete_api(state, &prompt).await?
-                } else {
-                    let lg = logger.clone();
-                    ai::complete_cli(state, &prompt, &project.workdir, move |s, l| lg.line(s, l)).await?
+                let answer = match &submitted {
+                    Some(a) => {
+                        logger.line("info", "รับคำตอบจาก agent ที่คุม flow");
+                        a.clone()
+                    }
+                    None => {
+                        if prompt.trim().is_empty() {
+                            return Err("ยังไม่ได้ตั้ง prompt ของขั้นตอนนี้".into());
+                        }
+                        let agent = {
+                            let c = state.db.lock().unwrap();
+                            let id = if def.agent.is_empty() { cfg.flow_agent.clone() } else { def.agent.clone() };
+                            db::pick_agent(&c, &id)
+                        }
+                        .ok_or("ยังไม่มี AI agent (ไปที่ ตั้งค่า, AI agents)")?;
+                        let model = if agent.model.is_empty() { String::new() } else { format!(", {}", agent.model) };
+                        logger.line("info", &format!("เรียก agent {} ({}{})", agent.name, agent.provider, model));
+                        let lg = logger.clone();
+                        ai::complete(state, &agent, &prompt, &project.workdir, move |s, l| lg.line(s, l)).await?
+                    }
                 };
                 let mut summary = String::from("AI ตอบแล้ว");
                 let mut parsed: Option<Value> = None;

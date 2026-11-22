@@ -55,6 +55,20 @@ CREATE TABLE IF NOT EXISTS posts (
   note         TEXT NOT NULL DEFAULT '',
   created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS agents (
+  id           INTEGER PRIMARY KEY,
+  name         TEXT NOT NULL,
+  title        TEXT NOT NULL DEFAULT '',
+  description  TEXT NOT NULL DEFAULT '',
+  provider     TEXT NOT NULL DEFAULT 'claude',
+  model        TEXT NOT NULL DEFAULT '',
+  effort       TEXT NOT NULL DEFAULT '',
+  instructions TEXT NOT NULL DEFAULT '',
+  command      TEXT NOT NULL DEFAULT '',
+  api_base     TEXT NOT NULL DEFAULT '',
+  is_default   INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE INDEX IF NOT EXISTS idx_clips_project ON clips(project_id, status);
 "#;
 
@@ -63,6 +77,7 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     c.pragma_update(None, "journal_mode", "WAL")?;
     c.pragma_update(None, "foreign_keys", true)?;
     c.execute_batch(SCHEMA)?;
+    seed_agents(&c);
     Ok(c)
 }
 
@@ -70,7 +85,7 @@ pub fn now() -> String {
     chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-const CLIP_COLS: &str = "c.id, c.project_id, c.clip_key, c.title, c.ref, c.status, c.brief, c.script, c.caption, c.video_path, c.cover_path, c.duration, c.lufs, c.notes, c.created_at, c.updated_at, (SELECT COUNT(*) FROM steps s WHERE s.clip_id = c.id AND s.status = 'done')";
+const CLIP_COLS: &str = "c.id, c.project_id, c.clip_key, c.title, c.ref, c.status, c.brief, c.script, c.caption, c.video_path, c.cover_path, c.duration, c.lufs, c.notes, c.created_at, c.updated_at, (SELECT COUNT(*) FROM steps s WHERE s.clip_id = c.id AND s.status = 'done' AND s.step_key != '__flow__')";
 
 fn clip_from_row(r: &Row) -> rusqlite::Result<Clip> {
     Ok(Clip {
@@ -221,4 +236,80 @@ pub fn set_step(
     )
     .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ---------- agents ----------
+const AGENT_COLS: &str = "id, name, title, description, provider, model, effort, instructions, command, api_base, is_default";
+
+fn agent_from_row(r: &Row) -> rusqlite::Result<crate::models::Agent> {
+    let provider: String = r.get(4)?;
+    let id: i64 = r.get(0)?;
+    let has_key = crate::ai::is_api(&provider) && crate::ai::get_key(id).is_some();
+    Ok(crate::models::Agent {
+        id,
+        name: r.get(1)?,
+        title: r.get(2)?,
+        description: r.get(3)?,
+        provider,
+        model: r.get(5)?,
+        effort: r.get(6)?,
+        instructions: r.get(7)?,
+        command: r.get(8)?,
+        api_base: r.get(9)?,
+        is_default: r.get::<_, i64>(10)? != 0,
+        has_key,
+    })
+}
+
+pub fn list_agents(c: &Connection) -> Result<Vec<crate::models::Agent>, String> {
+    let mut st = c
+        .prepare(&format!("SELECT {AGENT_COLS} FROM agents ORDER BY is_default DESC, id"))
+        .map_err(|e| e.to_string())?;
+    let rows = st.query_map([], agent_from_row).map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+pub fn get_agent(c: &Connection, id: i64) -> Option<crate::models::Agent> {
+    c.query_row(&format!("SELECT {AGENT_COLS} FROM agents WHERE id = ?1"), params![id], agent_from_row).ok()
+}
+
+pub fn default_agent(c: &Connection) -> Option<crate::models::Agent> {
+    c.query_row(&format!("SELECT {AGENT_COLS} FROM agents ORDER BY is_default DESC, id LIMIT 1"), [], agent_from_row)
+        .ok()
+}
+
+/// The agent a project's flow or a step uses: the given id, else the default.
+pub fn pick_agent(c: &Connection, id: &str) -> Option<crate::models::Agent> {
+    id.trim().parse::<i64>().ok().and_then(|i| get_agent(c, i)).or_else(|| default_agent(c))
+}
+
+/// First start: one default agent made from the single AI setting of the first version (if any).
+fn seed_agents(c: &Connection) {
+    let n: i64 = c.query_row("SELECT COUNT(*) FROM agents", [], |r| r.get(0)).unwrap_or(1);
+    if n > 0 {
+        return;
+    }
+    let st = |k: &str| get_setting(c, k).filter(|v| !v.trim().is_empty());
+    let api = st("ai_provider").as_deref() == Some("api");
+    let legacy_cli = st("ai_cli_cmd").filter(|v| v.trim() != "claude -p");
+    let (provider, command) = if api {
+        ("anthropic-api", String::new())
+    } else if let Some(cmd) = legacy_cli {
+        ("custom", cmd)
+    } else {
+        ("claude", String::new())
+    };
+    let model = if api { st("ai_api_model").unwrap_or_default() } else { String::new() };
+    let base = if api { st("ai_api_base").unwrap_or_default() } else { String::new() };
+    let ok = c
+        .execute(
+            "INSERT INTO agents (name, title, description, provider, model, command, api_base, is_default) VALUES ('Editor', 'ผู้คุมงานทั้ง flow', 'เขียนบท ออกแบบภาพ และคุมลำดับขั้นตอนทั้งหมด', ?1, ?2, ?3, ?4, 1)",
+            params![provider, model, command, base],
+        )
+        .is_ok();
+    if ok && api {
+        if let Some(k) = crate::ai::legacy_key() {
+            let _ = crate::ai::set_key(c.last_insert_rowid(), &k);
+        }
+    }
 }

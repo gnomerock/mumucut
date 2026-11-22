@@ -1,7 +1,7 @@
 /* In-memory stand-in for the Rust backend. Used only when the UI is opened in a plain browser
    (npm run dev) so the interface can be previewed; the packaged app always uses the real commands. */
 import { dhammaConfig } from "./templates";
-import type { Clip, Post, Project, Settings, StepRow } from "./types";
+import type { Agent, Clip, Post, Project, Settings, StepRow } from "./types";
 
 const now = () => new Date().toISOString().slice(0, 19).replace("T", " ");
 let projects: Project[] = [
@@ -33,24 +33,34 @@ const posts: Post[] = [
   { id: 1, clip_id: 4, clip_key: "EP14", clip_title: "ใจมั่นคงเหมือนหินผา", platform: "facebook", scheduled_at: "2026-11-22 17:00", url: "https://www.facebook.com/reel/2393251817879275", status: "scheduled", note: "", created_at: now() },
   { id: 2, clip_id: 4, clip_key: "EP14", clip_title: "ใจมั่นคงเหมือนหินผา", platform: "youtube", scheduled_at: "2026-11-22 17:00", url: "https://youtu.be/qW6SZwoTRL0", status: "scheduled", note: "", created_at: now() },
 ];
+let agents: Agent[] = [
+  { id: 1, name: "Editor", title: "ผู้คุมงานทั้ง flow", description: "เขียนบท ออกแบบภาพ และคุมลำดับขั้นตอนทั้งหมด", provider: "claude", model: "", effort: "", instructions: "", command: "", api_base: "", is_default: true, has_key: false },
+  { id: 2, name: "Writer", title: "เขียนคำบรรยาย", description: "", provider: "anthropic-api", model: "claude-sonnet-5-5", effort: "", instructions: "ตอบเป็นภาษาไทย", command: "", api_base: "", is_default: false, has_key: true },
+];
 let settings: Settings = { ai_provider: "cli", ai_cli_cmd: "claude -p", theme: "system" };
 
 export async function mockInvoke<T>(cmd: string, a: Record<string, unknown> = {}): Promise<T> {
+  const a_ = a as Record<string, unknown> & { agent?: Agent; id?: number };
   await new Promise((r) => setTimeout(r, 40));
   const out = (v: unknown) => v as T;
   switch (cmd) {
     case "get_settings": return out(settings);
     case "set_setting": settings = { ...settings, [a.key as string]: a.value as string }; return out(null);
-    case "has_api_key": return out(false);
-    case "set_api_key": case "clear_api_key": return out(null);
+    case "list_agents": return out(agents);
+    case "save_agent": { return out(a_.agent); }
+    case "delete_agent": agents = agents.filter((x) => x.id !== a_.id); return out(null);
+    case "set_default_agent": agents = agents.map((x) => ({ ...x, is_default: x.id === a_.id })); return out(null);
+    case "set_agent_key": case "clear_agent_key": return out(null);
+    case "test_agent": return out({ ok: true, answer: "OK", ms: 1800 });
+    case "run_flow": return out("agent จบการทำงาน");
     case "check_tools":
       return out([
         { key: "ffmpeg", name: "ffmpeg", ok: true, detail: "ffmpeg version 9.0-full_build" },
         { key: "ffprobe", name: "ffprobe", ok: true, detail: "ffprobe version 9.0-full_build" },
         { key: "node", name: "Node.js", ok: true, detail: "v24.13.0" },
         { key: "python", name: "Python", ok: true, detail: "Python 3.14.5" },
-        { key: "ai_cli", name: "AI CLI (claude)", ok: true, detail: "C:\\Users\\…\\claude.exe" },
-        { key: "ai_key", name: "AI API key", ok: false, detail: "ยังไม่ได้ตั้ง" },
+        { key: "agent_1", name: "AI agent Editor", ok: true, detail: "C:\\Users\\…\\claude.exe" },
+        { key: "agent_2", name: "AI agent Writer", ok: true, detail: "มี API key ใน Credential Manager" },
         { key: "comfy", name: "ComfyUI", ok: false, detail: "พอร์ต 8188 ยังไม่เปิด (ขั้นตอนสร้างภาพจะเปิดเอง)" },
         { key: "voice", name: "VoiceStudio", ok: true, detail: "พอร์ต 3900 เปิดอยู่" },
       ]);

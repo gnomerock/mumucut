@@ -214,6 +214,7 @@ function num(v: string, d = 0) {
 }
 
 function Editor({ project, onBack, onSaved }: { project: Project; onBack: () => void; onSaved: (p: Project) => Promise<void> }) {
+  const { agents } = useApp();
   const [p, setP] = useState<Project>(structuredClone(project));
   const c = p.config;
   const setC = (patch: Partial<ProjectConfig>) => setP({ ...p, config: { ...c, ...patch } });
@@ -235,7 +236,52 @@ function Editor({ project, onBack, onSaved }: { project: Project; onBack: () => 
           <TabsTrigger value="steps">ขั้นตอน ({c.steps.length})</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="pt-4">
+        <TabsContent value="general" className="grid gap-4 pt-4">
+          <GlassCard>
+            <CardHeader>
+              <div>
+                <CardTitle>ใครเป็นคนรันขั้นตอน</CardTitle>
+                <CardDesc>เลือกว่าคนกดรันทีละขั้นตอน หรือให้ AI agent คุมทั้ง flow ตั้งแต่เลือกหัวข้อจนลงคลัง</CardDesc>
+              </div>
+            </CardHeader>
+            <CardBody className="grid gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { id: "steps", title: "คนกดรันทีละขั้นตอน", desc: "แอพรันตามที่กด AI ช่วยเฉพาะขั้นตอนเขียนข้อความ" },
+                  { id: "agent", title: "agent คุมทั้ง flow", desc: "agent รันขั้นตอนตามลำดับ เขียนบทเอง แก้เมื่อล้มเหลว และหยุดรอคนที่จุดตรวจ" },
+                ].map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setC({ run_mode: o.id as "steps" | "agent" })}
+                    className={cn("soft rounded-lg border p-3.5 text-left", (c.run_mode ?? "steps") === o.id ? "bg-[var(--glass-bg-strong)] ring-1 ring-ring" : "hover:bg-[var(--glass-bg-subtle)]")}
+                  >
+                    <div className="text-sm font-semibold">{o.title}</div>
+                    <div className="mt-1 text-[13px] text-muted-foreground">{o.desc}</div>
+                  </button>
+                ))}
+              </div>
+              {c.run_mode === "agent" && (
+                <>
+                  <Field label="agent ที่คุม flow" hint="ต้องเป็นผู้ให้บริการที่คุมทั้ง flow ได้ (Claude Code หรือ CLI ที่รองรับ MCP) agent ไม่ได้สิทธิ์ shell มีแค่เครื่องมือของ MumuCut และไม่โพสต์อะไรเอง">
+                    <Select value={c.flow_agent || "default"} onValueChange={(v) => setC({ flow_agent: v === "default" ? "" : v })}>
+                      <SelectTrigger>{c.flow_agent ? agents.find((a) => String(a.id) === c.flow_agent)?.name ?? "ไม่พบ agent" : `ค่าเริ่มต้น (${agents.find((a) => a.is_default)?.name ?? "-"})`}</SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default">ค่าเริ่มต้น ({agents.find((a) => a.is_default)?.name ?? "-"})</SelectItem>
+                        {agents.map((a) => (
+                          <SelectItem key={a.id} value={String(a.id)}>
+                            {a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="คำสั่งของโปรเจกต์ถึง agent (ไม่บังคับ)" hint="เว้นว่างเพื่อใช้ข้อความมาตรฐานของ MumuCut ตัวแปร: {agent} {key}">
+                    <Textarea rows={6} value={c.flow_prompt ?? ""} onChange={(e) => setC({ flow_prompt: e.target.value })} placeholder="ข้อความมาตรฐาน: ทำตามลำดับ เขียนบทเอง หยุดที่จุดตรวจ ไม่โพสต์ รายงานเป็นภาษาไทย" />
+                  </Field>
+                </>
+              )}
+            </CardBody>
+          </GlassCard>
           <GlassCard>
             <CardBody className="grid gap-4 pt-5">
               <div className="grid grid-cols-2 gap-4">
@@ -354,6 +400,21 @@ function Editor({ project, onBack, onSaved }: { project: Project; onBack: () => 
                             </div>
                           </>
                         )}
+                        {s.kind === "ai" && (
+                          <Field label="agent ที่ตอบขั้นตอนนี้" hint="ใช้เมื่อคนกดรันทีละขั้นตอน (ในโหมด agent คุมทั้ง flow agent ตัวนั้นตอบเอง)">
+                            <Select value={s.agent || "default"} onValueChange={(v) => setStep(i, { agent: v === "default" ? "" : v })}>
+                              <SelectTrigger>{s.agent ? agents.find((a) => String(a.id) === s.agent)?.name ?? "ไม่พบ agent" : "agent ของโปรเจกต์ (ค่าเริ่มต้น)"}</SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="default">agent ของโปรเจกต์ (ค่าเริ่มต้น)</SelectItem>
+                                {agents.map((a) => (
+                                  <SelectItem key={a.id} value={String(a.id)}>
+                                    {a.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </Field>
+                        )}
                         {(s.kind === "shell" || s.kind === "ai") && (
                           <Field label={s.kind === "ai" ? "คำสั่งที่รันต่อหลังได้คำตอบ (ไม่บังคับ)" : "คำสั่ง (PowerShell, หนึ่งคำสั่งต่อบรรทัด, หยุดทันทีถ้าคำสั่งใดล้มเหลว)"}>
                             <Textarea rows={5} className="console text-[12.5px]" value={s.cmd} onChange={(e) => setStep(i, { cmd: e.target.value })} spellCheck={false} />
@@ -374,7 +435,7 @@ function Editor({ project, onBack, onSaved }: { project: Project; onBack: () => 
               <Button
                 variant="glass"
                 onClick={() => {
-                  setC({ steps: [...c.steps, { key: `step${c.steps.length + 1}`, label: "ขั้นตอนใหม่", desc: "", kind: "shell", cmd: "", prompt: "", output_file: "", merge_into: "", gate: false, gpu: false, preview: "" }] });
+                  setC({ steps: [...c.steps, { key: `step${c.steps.length + 1}`, label: "ขั้นตอนใหม่", desc: "", kind: "shell", cmd: "", prompt: "", output_file: "", merge_into: "", gate: false, gpu: false, preview: "", agent: "" }] });
                   setOpen(c.steps.length);
                 }}
               >
