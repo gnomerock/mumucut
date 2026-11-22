@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Clapperboard, FolderCog, Library, LayoutDashboard, Moon, Settings as SettingsIcon, Sun, MonitorCog } from "lucide-react";
+import { ArrowUpCircle, Clapperboard, FolderCog, Library, LayoutDashboard, Moon, Settings as SettingsIcon, Sun, MonitorCog } from "lucide-react";
 import { useApp, type Page, type Theme } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
@@ -25,7 +25,7 @@ const themes: { id: Theme; icon: React.ReactNode; label: string }[] = [
 ];
 
 export default function App() {
-  const { page, go, clipId, projects, project, setProjectId, theme, setTheme } = useApp();
+  const { page, go, clipId, projects, project, setProjectId, theme, setTheme, update } = useApp();
   const showClip = clipId != null && (page === "clips" || page === "library");
 
   return (
@@ -84,7 +84,19 @@ export default function App() {
             })}
           </nav>
 
-          <div className="mt-auto">
+          <div className="mt-auto grid gap-2">
+            {update && (
+              <button
+                onClick={() => go("settings")}
+                className="soft glass-subtle flex items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] outline-none hover:bg-[var(--glass-bg)] focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4"
+              >
+                <ArrowUpCircle className="text-rose" />
+                <span className="leading-tight">
+                  มีเวอร์ชันใหม่
+                  <span className="block text-xs text-muted-foreground">{update.version}</span>
+                </span>
+              </button>
+            )}
             <div className="glass-subtle grid grid-cols-3 gap-0.5 rounded-md p-0.5" role="radiogroup" aria-label="ธีม">
               {themes.map((t) => (
                 <button

@@ -53,6 +53,15 @@ API key เก็บใน Windows Credential Manager ไม่อยู่ใ�
 - **CLI ที่ล็อกอินไว้แล้ว** (ค่าเริ่มต้น `claude -p`): ส่ง prompt ทาง stdin อ่านคำตอบจาก stdout ไม่แตะข้อมูลล็อกอิน
 - **API key**: Anthropic Messages API (ตั้งโมเดล/Base URL ได้)
 
+## ปล่อยเวอร์ชันและอัปเดตอัตโนมัติ
+
+- ทุกครั้งที่ push/merge เข้า `main`, `.github/workflows/release.yml` จะ build บน Windows แล้วสร้าง GitHub Release (แท็ก `v<major>.<minor>.<เลขรัน>`) พร้อมตัวติดตั้ง `.exe`, `.msi`, `MumuCut_portable_x64.exe` และ `latest.json` (ฟีดอัปเดตที่เซ็นชื่อแล้ว)
+- แอพที่ติดตั้งแล้วเช็ก `latest.json` ตอนเปิด (ปิดได้ใน ตั้งค่า → อัปเดตแอพ) ถ้ามีเวอร์ชันสูงกว่าจะขึ้นแจ้งที่แถบข้าง กด "ติดตั้งและรีสตาร์ท" แอพดาวน์โหลด ตรวจลายเซ็นกับ public key ที่ฝังไว้ใน `tauri.conf.json` ติดตั้ง แล้วเปิดใหม่ ข้อมูลใน SQLite ไม่ถูกแตะ
+- เวอร์ชันของแต่ละ build คือ `major.minor` จาก `tauri.conf.json` บวกเลขรันของ workflow เป็น patch (ถ้าไม่เพิ่มเลข แอพจะไม่เห็นว่ามีเวอร์ชันใหม่) ต้องการขึ้น minor/major ให้แก้ `version` ในไฟล์นั้นเอง
+- **ตั้งค่าครั้งเดียว:** สร้าง secret ใน repo (Settings → Secrets and variables → Actions) `TAURI_SIGNING_PRIVATE_KEY` = เนื้อหาไฟล์ private key และ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = รหัสผ่านของกุญแจ (ว่างถ้าไม่มี) และ Settings → Actions → General → Workflow permissions = Read and write
+- **repo ต้องเป็น public:** แอพอ่าน `latest.json` โดยไม่ล็อกอิน repo private จะอัปเดตเองไม่ได้
+- ห้ามทำ private key หาย หรือเปลี่ยนกุญแจ: แอพที่ติดตั้งไปแล้วจะรับอัปเดตที่เซ็นด้วยกุญแจใหม่ไม่ได้ ต้องติดตั้งใหม่เอง
+
 ## ข้อจำกัดที่ยังไม่ได้ทำ/ตรวจ
 - คำสั่งในแม่แบบธรรมะคัดมาจาก `ROUTINE_RUNBOOK.md` แต่ยังไม่เคยรันครบทั้ง flow ผ่านแอพ (voice/ComfyUI/render) — ทดสอบแล้วเฉพาะ runner, AI ผ่าน CLI จำลอง, ffmpeg, ตรวจไฟล์, ลงคลัง, นำเข้าคลัง
 - ยังไม่มีขั้นตอนโพสต์อัตโนมัติ (Facebook/YouTube ยังใช้ routine 06:00 เดิม) แอพบันทึกเวลา/ลิงก์ให้เท่านั้น

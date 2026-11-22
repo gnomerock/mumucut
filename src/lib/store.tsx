@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { CheckCircle2, AlertTriangle, Info } from "lucide-react";
 import { api } from "./api";
 import type { Clip, Project, Settings, Stats } from "./types";
+import { checkForUpdate, type UpdateInfo } from "./updater";
 
 export type Page = "dashboard" | "clips" | "library" | "projects" | "settings";
 export type Theme = "light" | "dark" | "system";
@@ -28,6 +29,8 @@ interface Ctx {
   setSetting: (k: string, v: string) => Promise<void>;
   theme: Theme;
   setTheme: (t: Theme) => void;
+  update: UpdateInfo | null;
+  checkUpdate: (manual?: boolean) => Promise<UpdateInfo | null>;
   refresh: () => Promise<void>;
   notify: (text: string, tone?: Toast["tone"]) => void;
   err: (e: unknown) => void;
@@ -58,6 +61,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<Settings>({});
   const [theme, setThemeState] = useState<Theme>((localStorage.getItem("theme") as Theme) || "system");
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const notify = useCallback((text: string, tone: Toast["tone"] = "ok") => {
@@ -87,6 +91,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const checkUpdate = useCallback(
+    async (manual = false) => {
+      try {
+        const u = await checkForUpdate();
+        setUpdate(u);
+        if (manual) notify(u ? `มีเวอร์ชันใหม่ ${u.version}` : "ใช้เวอร์ชันล่าสุดอยู่แล้ว", u ? "info" : "ok");
+        return u;
+      } catch (e) {
+        // a silent check at start-up must never nag (offline, no release yet)
+        if (manual) err(e);
+        return null;
+      }
+    },
+    [notify, err],
+  );
+
+  const settingsLoaded = Object.keys(settings).length > 0;
+  useEffect(() => {
+    if (!settingsLoaded || settings.auto_update === "0") return;
+    const t = window.setTimeout(() => void checkUpdate(false), 4000);
+    return () => window.clearTimeout(t);
+    // once, after the settings have loaded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -131,11 +160,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       theme,
       setTheme,
+      update,
+      checkUpdate,
       refresh,
       notify,
       err,
     }),
-    [page, clipId, projects, projectId, clips, loading, stats, settings, theme, setTheme, refresh, notify, err],
+    [update, checkUpdate, page, clipId, projects, projectId, clips, loading, stats, settings, theme, setTheme, refresh, notify, err],
   );
 
   return (

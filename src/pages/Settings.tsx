@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Bot, Check, KeyRound, Palette, RefreshCw, Wrench, X } from "lucide-react";
+import { Bot, Check, Download, KeyRound, Palette, RefreshCw, Wrench, X } from "lucide-react";
 import { useApp, type Theme } from "@/lib/store";
 import { api, isTauri } from "@/lib/api";
 import type { ToolStatus } from "@/lib/types";
@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { CardBody, CardDesc, CardHeader, CardTitle, GlassCard } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
+import { currentVersion, installUpdate } from "@/lib/updater";
 import { PageHeader } from "@/components/common";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +30,13 @@ function SaveInput({ k, placeholder, mono = true }: { k: string; placeholder?: s
 }
 
 export default function SettingsPage() {
-  const { theme, setTheme, settings, setSetting, err, notify } = useApp();
+  const { theme, setTheme, settings, setSetting, err, notify, update, checkUpdate } = useApp();
+  const [version, setVersion] = useState("");
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [progress, setProgress] = useState<number | null | undefined>(undefined);
+  useEffect(() => {
+    void currentVersion().then(setVersion);
+  }, []);
   const [tools, setTools] = useState<ToolStatus[] | null>(null);
   const [checking, setChecking] = useState(false);
   const [hasKey, setHasKey] = useState(false);
@@ -71,6 +80,59 @@ export default function SettingsPage() {
               </button>
             ))}
           </div>
+        </CardBody>
+      </GlassCard>
+
+      <GlassCard>
+        <CardHeader>
+          <div>
+            <div className="flex items-center gap-2.5"><Download className="size-4" /><CardTitle>อัปเดตแอพ</CardTitle></div>
+            <CardDesc className="mt-1">เวอร์ชันที่ใช้อยู่ {version || "-"} ตรวจเวอร์ชันใหม่จาก GitHub Releases และตรวจลายเซ็นก่อนติดตั้งทุกครั้ง</CardDesc>
+          </div>
+          <Button
+            variant="glass"
+            size="sm"
+            disabled={checkingUpdate || progress !== undefined}
+            onClick={async () => {
+              setCheckingUpdate(true);
+              await checkUpdate(true);
+              setCheckingUpdate(false);
+            }}
+          >
+            <RefreshCw className={cn(checkingUpdate && "animate-spin")} /> ตรวจหาเวอร์ชันใหม่
+          </Button>
+        </CardHeader>
+        <CardBody className="grid gap-3">
+          <label className="flex items-center gap-3 text-sm">
+            <Switch checked={settings.auto_update !== "0"} onCheckedChange={(v) => setSetting("auto_update", v ? "1" : "0").catch(err)} />
+            ตรวจหาเวอร์ชันใหม่อัตโนมัติทุกครั้งที่เปิดแอพ
+          </label>
+          {update && (
+            <div className="glass-subtle grid gap-3 rounded-md p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">มีเวอร์ชัน {update.version}</div>
+                  {update.notes && <div className="mt-1 whitespace-pre-wrap text-[13px] text-muted-foreground">{update.notes}</div>}
+                </div>
+                <Button
+                  disabled={progress !== undefined}
+                  onClick={async () => {
+                    setProgress(null);
+                    try {
+                      await installUpdate(setProgress);
+                    } catch (e) {
+                      setProgress(undefined);
+                      err(e);
+                    }
+                  }}
+                >
+                  <Download /> ติดตั้งและรีสตาร์ท
+                </Button>
+              </div>
+              {progress !== undefined && <Progress value={progress ?? 5} />}
+              <p className="text-xs text-muted-foreground">ข้อมูลและโปรเจกต์ของคุณไม่ถูกแตะ งานที่กำลังรันอยู่จะหยุดตอนรีสตาร์ท</p>
+            </div>
+          )}
         </CardBody>
       </GlassCard>
 

@@ -1,7 +1,12 @@
 name: Release
 
-# Every push to main (a merged pull request is a push) builds the Windows app
-# and publishes a GitHub Release with the installer .exe, the .msi and a portable .exe.
+# Every push to main (a merged pull request is a push) builds the Windows app and publishes a
+# GitHub Release: installer .exe, .msi, a portable .exe and the signed update feed (latest.json)
+# that installed copies of the app read to update themselves.
+#
+# Needs two repository secrets (Settings > Secrets and variables > Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           content of the updater private key (mumucut.key)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty string when the key has none)
 on:
   push:
     branches: [main]
@@ -34,13 +39,24 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Release tag
+      # The updater only offers a build whose version is higher than the installed one, so every
+      # run gets its own version: <major>.<minor> from tauri.conf.json plus the run number as patch.
+      - name: Version for this build
         id: meta
         shell: bash
         run: |
-          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          base=$(node -p "require('./src-tauri/tauri.conf.json').version.split('.').slice(0,2).join('.')")
+          version="${base}.${GITHUB_RUN_NUMBER}"
+          node -e "
+            const fs = require('fs');
+            const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            conf.version = '${version}';
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+            const toml = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').replace(/^version = \".*\"/m, 'version = \"${version}\"');
+            fs.writeFileSync('src-tauri/Cargo.toml', toml);
+          "
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v${version}-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
 
@@ -49,16 +65,21 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ steps.meta.outputs.tag }}
-          releaseName: MumuCut ${{ steps.meta.outputs.version }} (build ${{ github.run_number }})
+          releaseName: MumuCut ${{ steps.meta.outputs.version }}
           releaseBody: |
             Windows build of MumuCut from commit ${{ github.sha }}.
             - `MumuCut_*_x64-setup.exe`: installer
             - `MumuCut_*_x64_en-US.msi`: MSI installer
-            - `MumuCut_portable_x64.exe`: portable app (needs the Microsoft Edge WebView2 runtime, already present on Windows 11)
+            - `MumuCut_portable_x64.exe`: portable app (no auto-install; needs the Microsoft Edge WebView2 runtime, already on Windows 11)
+            - `latest.json`: signed update feed read by the app's auto-update
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
 
       - name: Attach portable exe
         shell: bash
