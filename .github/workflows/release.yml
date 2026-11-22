@@ -4,9 +4,9 @@ name: Release
 # GitHub Release: installer .exe, .msi, a portable .exe and the signed update feed (latest.json)
 # that installed copies of the app read to update themselves.
 #
-# Needs two repository secrets (Settings > Secrets and variables > Actions):
-#   TAURI_SIGNING_PRIVATE_KEY           content of the updater private key (mumucut.key)
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty string when the key has none)
+# Needs one repository secret (Settings > Secrets and variables > Actions):
+#   TAURI_SIGNING_PRIVATE_KEY  the whole content of the updater private key file (mumucut.key, one line)
+# The key has no password, so TAURI_SIGNING_PRIVATE_KEY_PASSWORD is not needed (leave it unset).
 on:
   push:
     branches: [main]
