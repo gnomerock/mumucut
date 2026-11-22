@@ -188,7 +188,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
-              className="glass-strong pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-lg px-4 py-3 text-sm"
+              className="solid pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-lg px-4 py-3 text-sm"
             >
               {t.tone === "ok" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" /> : t.tone === "error" ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose" /> : <Info className="mt-0.5 size-4 shrink-0" />}
               <span className="whitespace-pre-wrap break-words">{t.text}</span>
