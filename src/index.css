@@ -4,10 +4,12 @@
  * built: the project · redesign: polish · v2.0.0 */
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource/sarabun/300.css";
-@import "@fontsource/sarabun/400.css";
-@import "@fontsource/sarabun/500.css";
-@import "@fontsource/sarabun/600.css";
+@import "@fontsource/ibm-plex-sans-thai/300.css";
+@import "@fontsource/ibm-plex-sans-thai/400.css";
+@import "@fontsource/ibm-plex-sans-thai/500.css";
+@import "@fontsource/ibm-plex-sans-thai/600.css";
+@import "@fontsource/ibm-plex-sans-thai/700.css";
+/* Sarabun 700 only for the text-style preview (the dhamma channel clip font) */
 @import "@fontsource/sarabun/700.css";
 
 @custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
@@ -100,7 +102,7 @@
 }
 
 @theme inline {
-  --font-sans: "Sarabun", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-sans: "IBM Plex Sans Thai", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);

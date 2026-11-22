@@ -394,7 +394,7 @@ function TextPreview({ c }: { c: ProjectConfig }) {
   const k = W / c.width;
   const H = c.height * k;
   const strokeStyle: React.CSSProperties = {
-    fontFamily: `"${t.font}", "Sarabun", sans-serif`,
+    fontFamily: `"${t.font}", "IBM Plex Sans Thai", sans-serif`,
     fontSize: 74 * k,
     fontWeight: 700,
     lineHeight: 1.3,

@@ -3,6 +3,7 @@
 โปรแกรมเดสก์ท็อปสำหรับทำคลิปสั้นด้วย flow เดียวกับที่ทำคลิปธรรมะ: เลือกหัวข้อ → เขียนบท (AI) → ทำเสียง → ออกแบบ/สร้างภาพ → จัดหน้า → เรนเดอร์ → ตรวจไฟล์ → แคปชัน (AI) → ลงคลัง → บันทึกโพสต์
 
 **Stack:** Rust + Tauri 2 · React 19 + TypeScript · Tailwind CSS v4 · shadcn/ui (Radix UI) · Motion · SQLite (rusqlite, bundled)
+**ฟอนต์ UI:** IBM Plex Sans Thai
 **ดีไซน์:** Subtle Glass — blur 16–24 px, ขอบขาวบาง, เงาเบา, สีกลาง (neutral), Light / Dark / ตามระบบ, animation นุ่ม (เคารพ `prefers-reduced-motion`)
 
 ## รัน / สร้าง
