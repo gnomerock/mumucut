@@ -5,14 +5,14 @@ import { useApp } from "@/lib/store";
 import { api, fileUrl, revealPath } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/card";
-import { ClipStatusBadge, Empty, PageHeader, clipStatusMeta } from "@/components/common";
+import { ClipStatusBadge, Empty, PageHeader, Skeleton, clipStatusMeta } from "@/components/common";
 import { cn, fmtDuration } from "@/lib/utils";
 import type { Clip, ClipStatus } from "@/lib/types";
 
 const filters: (ClipStatus | "all")[] = ["all", "ready", "scheduled", "posted", "hold"];
 
 export default function LibraryPage() {
-  const { clips, openClip, refresh, err, notify, stats } = useApp();
+  const { clips, loading, openClip, refresh, err, notify, stats } = useApp();
   const [f, setF] = useState<ClipStatus | "all">("all");
   const done = useMemo(() => clips.filter((c) => ["ready", "scheduled", "posted", "hold"].includes(c.status)), [clips]);
   const list = f === "all" ? done : done.filter((c) => c.status === f);
@@ -30,7 +30,7 @@ export default function LibraryPage() {
 
   return (
     <div>
-      <PageHeader title="คลัง" desc="คลิปที่ทำเสร็จแล้ว — ตรวจสถานะ พักไว้ หรือเปิดโฟลเดอร์ไฟล์">
+      <PageHeader title="คลัง" desc="คลิปที่ทำเสร็จแล้ว ตรวจสถานะ พักไว้ หรือเปิดโฟลเดอร์ไฟล์">
         <div className="glass-subtle flex rounded-md p-0.5">
           {filters.map((k) => (
             <button
@@ -38,7 +38,7 @@ export default function LibraryPage() {
               onClick={() => setF(k)}
               className={cn(
                 "soft h-8 rounded-sm px-3 text-[13px] font-medium",
-                f === k ? "bg-[var(--glass-bg-strong)] text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                f === k ? "bg-[var(--glass-bg-strong)] text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {k === "all" ? "ทั้งหมด" : clipStatusMeta[k].label}
@@ -48,7 +48,13 @@ export default function LibraryPage() {
         </div>
       </PageHeader>
 
-      {list.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3.5" aria-busy="true">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="aspect-[9/14] rounded-lg" />
+          ))}
+        </div>
+      ) : list.length === 0 ? (
         <GlassCard>
           <Empty icon={<LibraryIcon />} title="ยังไม่มีคลิปในคลัง" desc="คลิปจะมาอยู่ที่นี่หลังขั้นตอน “ลงคลัง” หรือนำเข้าจากโฟลเดอร์คลังเดิมในหน้าโปรเจกต์" />
         </GlassCard>
@@ -63,11 +69,11 @@ export default function LibraryPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(i, 10) * 0.03, duration: 0.3 }}
               >
-                <GlassCard className="group overflow-hidden">
+                <GlassCard className="soft group overflow-hidden hover:bg-[var(--glass-bg-strong)]">
                   <button onClick={() => openClip(c.id)} className="block w-full text-left">
                     <div className="relative aspect-[9/12] w-full overflow-hidden bg-[linear-gradient(160deg,var(--muted),transparent)]">
                       {cover ? (
-                        <img src={cover} alt={c.title} className="size-full object-cover transition-transform duration-500 ease-[var(--ease-soft)] group-hover:scale-[1.025]" loading="lazy" />
+                        <img src={cover} alt={c.title} className="size-full object-cover" loading={i < 6 ? "eager" : "lazy"} />
                       ) : (
                         <div className="grid size-full place-items-center font-mono text-2xl font-semibold text-muted-foreground/50">{c.clip_key}</div>
                       )}

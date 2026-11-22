@@ -17,7 +17,7 @@ export const clipStatusMeta: Record<ClipStatus, { label: string; tone: "neutral"
 export function ClipStatusBadge({ status }: { status: ClipStatus }) {
   const m = clipStatusMeta[status] ?? clipStatusMeta.draft;
   return (
-    <Badge tone={m.tone} dot>
+    <Badge tone={m.tone}>
       {m.label}
     </Badge>
   );
@@ -82,6 +82,10 @@ export function PageHeader({ title, desc, children }: { title: string; desc?: st
       <div className="flex items-center gap-2">{children}</div>
     </div>
   );
+}
+
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("animate-pulse rounded-md bg-[color-mix(in_oklab,var(--foreground)_9%,transparent)]", className)} aria-hidden />;
 }
 
 export function Empty({ icon, title, desc, children }: { icon?: React.ReactNode; title: string; desc?: string; children?: React.ReactNode }) {

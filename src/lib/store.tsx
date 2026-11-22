@@ -22,6 +22,7 @@ interface Ctx {
   project: Project | null;
   setProjectId: (id: number) => void;
   clips: Clip[];
+  loading: boolean;
   stats: Stats | null;
   settings: Settings;
   setSetting: (k: string, v: string) => Promise<void>;
@@ -43,7 +44,7 @@ function applyTheme(t: Theme) {
   const dark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   const root = document.documentElement;
   root.classList.add("theme-fade");
-  root.classList.toggle("dark", dark);
+  root.dataset.mode = dark ? "dark" : "light";
   window.setTimeout(() => root.classList.remove("theme-fade"), 450);
 }
 
@@ -54,6 +55,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [projectId, setPid] = useState<number | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<Settings>({});
   const [theme, setThemeState] = useState<Theme>((localStorage.getItem("theme") as Theme) || "system");
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -76,6 +78,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setClips(await api.clips(pid));
     } catch (e) {
       err(e);
+    } finally {
+      setLoading(false);
     }
   }, [projectId, err]);
 
@@ -118,6 +122,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         api.clips(id).then(setClips).catch(err);
       },
       clips,
+      loading,
       stats,
       settings,
       setSetting: async (k, v) => {
@@ -130,7 +135,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       notify,
       err,
     }),
-    [page, clipId, projects, projectId, clips, stats, settings, theme, setTheme, refresh, notify, err],
+    [page, clipId, projects, projectId, clips, loading, stats, settings, theme, setTheme, refresh, notify, err],
   );
 
   return (

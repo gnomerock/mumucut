@@ -104,7 +104,9 @@ export default function Projects() {
                 </CardHeader>
                 <CardBody className="flex flex-wrap items-center gap-2 pt-2 text-[13px] text-muted-foreground">
                   <Badge>{p.config.steps.length} ขั้นตอน</Badge>
-                  <Badge>{p.config.width}×{p.config.height} · {p.config.fps} fps · ≤{p.config.max_seconds} วิ</Badge>
+                  <Badge>{p.config.width}×{p.config.height}</Badge>
+                  <Badge>{p.config.fps} fps</Badge>
+                  <Badge>ไม่เกิน {p.config.max_seconds} วิ</Badge>
                   <Badge>ฟอนต์ {p.config.text?.font ?? "–"}</Badge>
                   <Badge>รหัส {p.key_prefix}nn</Badge>
                   <span className="truncate font-mono text-xs">คลัง: {p.library_dir || "–"}</span>
@@ -222,7 +224,7 @@ function Editor({ project, onBack, onSaved }: { project: Project; onBack: () => 
 
   return (
     <div>
-      <PageHeader title={p.name || "โปรเจกต์"} desc="แก้ค่าแล้วกดบันทึก — มีผลกับคลิปที่รันหลังจากนี้">
+      <PageHeader title={p.name || "โปรเจกต์"} desc="แก้ค่าแล้วกดบันทึก มีผลกับคลิปที่รันหลังจากนี้">
         <Button variant="glass" onClick={onBack}><ArrowLeft /> กลับ</Button>
         <Button disabled={!dirty} onClick={() => onSaved(p)}><Save /> บันทึก</Button>
       </PageHeader>
@@ -405,7 +407,7 @@ function TextPreview({ c }: { c: ProjectConfig }) {
   return (
     <GlassCard className="self-start p-3">
       <div className="mx-auto overflow-hidden rounded-md" style={{ width: W, height: H }}>
-        <div className="relative size-full bg-[linear-gradient(170deg,#7c8aa8,#3b4258_55%,#2a2e40)]">
+        <div className="relative size-full bg-[linear-gradient(170deg,var(--stage-a),var(--stage-b)_55%,var(--stage-c))]">
           <div
             className="absolute border border-dashed border-white/55"
             style={{ left: t.safe.left * k, top: t.safe.top * k, width: (t.safe.right - t.safe.left) * k, height: (t.safe.bottom - t.safe.top) * k }}
@@ -419,7 +421,7 @@ function TextPreview({ c }: { c: ProjectConfig }) {
           </div>
         </div>
       </div>
-      <p className="pt-2 text-center text-xs text-muted-foreground">ตัวอย่างอัตราส่วนจริง · เส้นประ = พื้นที่ปลอดภัย</p>
+      <p className="pt-2 text-center text-xs text-muted-foreground">ตัวอย่างอัตราส่วนจริง เส้นประคือพื้นที่ปลอดภัย</p>
     </GlassCard>
   );
 }

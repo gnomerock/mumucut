@@ -95,7 +95,7 @@ export default function App() {
                   onClick={() => setTheme(t.id)}
                   className={cn(
                     "soft grid h-8 place-items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4",
-                    theme === t.id ? "bg-[var(--glass-bg-strong)] text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                    theme === t.id ? "bg-[var(--glass-bg-strong)] text-foreground" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {t.icon}

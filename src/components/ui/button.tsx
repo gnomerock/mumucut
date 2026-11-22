@@ -8,8 +8,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-[0_1px_2px_rgb(0_0_0/0.12)] hover:opacity-90",
-        glass: "glass-subtle hover:bg-[var(--glass-bg)] text-foreground",
+        default: "bg-primary text-primary-foreground shadow-[var(--shadow-press)] hover:opacity-90",
+        glass: "glass-subtle shadow-none border-[var(--glass-hairline)] hover:bg-[var(--glass-bg)] text-foreground",
         ghost: "hover:bg-[var(--glass-bg-subtle)] text-foreground",
         rose: "bg-rose text-white hover:opacity-90",
         destructive: "text-destructive hover:bg-[color-mix(in_oklab,var(--destructive)_12%,transparent)]",

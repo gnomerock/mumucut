@@ -57,7 +57,7 @@ export default function SettingsPage() {
 
   return (
     <div className="grid gap-4 pb-4">
-      <PageHeader title="ตั้งค่า" desc={isTauri ? "ค่าทั้งหมดเก็บในเครื่องนี้ (SQLite) ส่วน API key เก็บใน Windows Credential Manager" : "โหมดดูตัวอย่างในเบราว์เซอร์ — ข้อมูลเป็นตัวอย่าง"} />
+      <PageHeader title="ตั้งค่า" desc={isTauri ? "ค่าทั้งหมดเก็บในเครื่องนี้ (SQLite) ส่วน API key เก็บใน Windows Credential Manager" : "โหมดดูตัวอย่างในเบราว์เซอร์ ข้อมูลเป็นตัวอย่าง"} />
 
       <GlassCard>
         <CardHeader>
@@ -66,7 +66,7 @@ export default function SettingsPage() {
         <CardBody className="pt-3">
           <div className="glass-subtle inline-flex rounded-md p-0.5">
             {themes.map((t) => (
-              <button key={t.id} onClick={() => setTheme(t.id)} className={cn("soft h-8 rounded-sm px-4 text-[13px] font-medium", theme === t.id ? "bg-[var(--glass-bg-strong)] shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+              <button key={t.id} onClick={() => setTheme(t.id)} className={cn("soft h-8 rounded-sm px-4 text-[13px] font-medium", theme === t.id ? "bg-[var(--glass-bg-strong)]" : "text-muted-foreground hover:text-foreground")}>
                 {t.label}
               </button>
             ))}
@@ -78,7 +78,7 @@ export default function SettingsPage() {
         <CardHeader>
           <div>
             <div className="flex items-center gap-2.5"><Bot className="size-4" /><CardTitle>AI ที่ใช้เขียนบทและออกแบบ</CardTitle></div>
-            <CardDesc className="mt-1">เลือกอย่างใดอย่างหนึ่ง — ขั้นตอนชนิด AI จะเรียกตามที่เลือก</CardDesc>
+            <CardDesc className="mt-1">เลือกอย่างใดอย่างหนึ่ง ขั้นตอนชนิด AI จะเรียกตามที่เลือก</CardDesc>
           </div>
         </CardHeader>
         <CardBody className="grid gap-4">
@@ -101,7 +101,7 @@ export default function SettingsPage() {
             ))}
           </div>
           {provider === "cli" ? (
-            <Field label="คำสั่ง CLI" hint="รับ prompt ทาง stdin และตอบทาง stdout (ค่าเริ่มต้น: claude -p) — เงื่อนไขการใช้งานของผู้ให้บริการยังไม่ได้ตรวจ โดยเฉพาะถ้าแจกจ่ายแอพ">
+            <Field label="คำสั่ง CLI" hint="รับ prompt ทาง stdin และตอบทาง stdout (ค่าเริ่มต้น: claude -p) เงื่อนไขการใช้งานของผู้ให้บริการยังไม่ได้ตรวจ โดยเฉพาะถ้าแจกจ่ายแอพ">
               <SaveInput k="ai_cli_cmd" placeholder="claude -p" />
             </Field>
           ) : (

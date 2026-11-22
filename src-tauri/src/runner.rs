@@ -306,7 +306,7 @@ pub async fn execute<R: Runtime>(app: &AppHandle<R>, state: &AppState, clip_id: 
                     rusqlite::params![clip_id, r, t, b, db::now()],
                 )
                 .map_err(|e| e.to_string())?;
-                Ok(format!("เลือกแล้ว: {r} — {t}"))
+                Ok(format!("เลือกแล้ว: {r}: {t}"))
             }
             "shell" => {
                 run_shell(state, &logger, clip_id, step_key, &subst(&def.cmd, &vars), &project.workdir, &env).await?;
@@ -384,7 +384,7 @@ pub async fn execute<R: Runtime>(app: &AppHandle<R>, state: &AppState, clip_id: 
                 logger.line("info", &format!("ตรวจ {}", video.display()));
                 let rep = ffcheck::check_video(state, &video, &cfg).await?;
                 for i in &rep.items {
-                    logger.line("info", &format!("{} {} — {} (ต้อง {})", if i.ok { "✓" } else { "✗" }, i.name, i.value, i.expect));
+                    logger.line("info", &format!("{} {}: {} (ต้อง {})", if i.ok { "✓" } else { "✗" }, i.name, i.value, i.expect));
                 }
                 {
                     let cover = PathBuf::from(vars.get("cover").cloned().unwrap_or_default());

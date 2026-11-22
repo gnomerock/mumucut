@@ -8,7 +8,7 @@ const badge = cva("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 t
       success: "bg-[color-mix(in_oklab,var(--success)_16%,transparent)] text-[color-mix(in_oklab,var(--success)_85%,var(--foreground))]",
       warning: "bg-[color-mix(in_oklab,var(--warning)_20%,transparent)] text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]",
       danger: "bg-[color-mix(in_oklab,var(--rose)_14%,transparent)] text-rose",
-      info: "bg-[color-mix(in_oklab,oklch(0.6_0.1_250)_16%,transparent)] text-[color-mix(in_oklab,oklch(0.6_0.1_250)_75%,var(--foreground))]",
+      info: "bg-[color-mix(in_oklab,var(--info)_16%,transparent)] text-[color-mix(in_oklab,var(--info)_75%,var(--foreground))]",
     },
   },
   defaultVariants: { tone: "neutral" },

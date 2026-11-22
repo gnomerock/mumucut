@@ -23,7 +23,7 @@ export const defaultText = (font = "Playpen Sans Thai") => ({
 });
 
 const SCRIPT_PROMPT = `คุณคือคนเขียนบทคลิปสั้นช่อง "ธรรมะสำหรับผู้สูงอายุ" (ผู้พูดเป็นผู้ชาย ลงท้ายด้วย ครับ)
-หัวข้อ: {ref} — {title}
+หัวข้อ: {ref} {title}
 ต้นฉบับ (อังกฤษ Sujato สาธารณสมบัติ + ร่างถอดความไทย):
 {brief}
 
@@ -112,7 +112,7 @@ export const dhammaConfig = (_library = ""): ProjectConfig => ({
       kind: "shell",
       gpu: true,
       gate: true,
-      desc: "ComfyUI สร้างภาพ แล้วซิงก์เข้าโปรเจกต์ — เปิดดูทุกภาพก่อนกดอนุมัติ (ไม่เอาภาพที่มีวัตถุแปลกปลอม มือเพี้ยน)",
+      desc: "ComfyUI สร้างภาพ แล้วซิงก์เข้าโปรเจกต์ เปิดดูทุกภาพก่อนกดอนุมัติ (ไม่เอาภาพที่มีวัตถุแปลกปลอม มือเพี้ยน)",
       cmd: [
         "powershell -File D:\\short-clips\\comfy-workflows\\start_comfy.ps1",
         "python D:\\short-clips\\comfy-workflows\\gen_popup_assets.py --jobs popspec\\{key}_assets.json",

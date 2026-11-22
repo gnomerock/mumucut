@@ -9,7 +9,7 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "soft inline-flex h-8 items-center justify-center gap-1.5 rounded-sm px-3 text-[13px] font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-[var(--glass-bg-strong)] data-[state=active]:text-foreground data-[state=active]:shadow-sm [&_svg]:size-3.5",
+        "soft inline-flex h-8 items-center justify-center gap-1.5 rounded-sm px-3 text-[13px] font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-[var(--glass-bg-strong)] data-[state=active]:text-foreground [&_svg]:size-3.5",
         className,
       )}
       {...props}

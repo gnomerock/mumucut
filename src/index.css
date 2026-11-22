@@ -1,3 +1,7 @@
+/* Hallmark · checked: 2026-11-22 · genre: modern-minimal (inferred) · scope: app
+ * waived: ambient gradient and white hairline borders (required by the glass brief)
+ * floor: 0 FAIL · fixed: 10a, 19, 34, 48, 63, 67 · kept by request: glass surfaces (blur 16 to 24 px, hairline white border, light shadow)
+ * built: the project · redesign: polish · v2.0.0 */
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource/sarabun/300.css";
@@ -6,7 +10,7 @@
 @import "@fontsource/sarabun/600.css";
 @import "@fontsource/sarabun/700.css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where([data-mode="dark"], [data-mode="dark"] *));
 
 /* Playpen Sans Thai = default clip font (used in the text-style preview only) */
 @font-face {
@@ -38,6 +42,11 @@
   --success: oklch(0.58 0.12 160);
   --warning: oklch(0.68 0.13 75);
   --ring: oklch(0.45 0.02 255 / 0.55);
+  --info: oklch(0.6 0.1 250);
+  --shadow-press: none;
+  --stage-a: oklch(0.62 0.04 262);
+  --stage-b: oklch(0.38 0.04 266);
+  --stage-c: oklch(0.29 0.04 268);
 
   --glass-bg: rgb(255 255 255 / 0.6);
   --glass-bg-strong: rgb(255 255 255 / 0.8);
@@ -51,6 +60,7 @@
   --glass-blur-lg: 24px;
   --glass-saturate: 1.35;
   --field-bg: rgb(255 255 255 / 0.55);
+  --field-border: rgb(20 24 40 / 0.12);
   --ambient-a: oklch(0.86 0.04 250 / 0.55);
   --ambient-b: oklch(0.9 0.04 20 / 0.4);
   --ambient-c: oklch(0.88 0.03 190 / 0.4);
@@ -58,7 +68,7 @@
   color-scheme: light;
 }
 
-.dark {
+[data-mode="dark"] {
   --background: oklch(0.17 0.008 255);
   --foreground: oklch(0.96 0.004 255);
   --muted: oklch(0.24 0.008 255);
@@ -72,15 +82,17 @@
   --success: oklch(0.74 0.13 160);
   --warning: oklch(0.8 0.13 80);
   --ring: oklch(0.8 0.02 255 / 0.5);
+  --info: oklch(0.74 0.1 250);
 
   --glass-bg: rgb(32 35 44 / 0.62);
   --glass-bg-strong: rgb(30 33 42 / 0.82);
   --glass-bg-subtle: rgb(255 255 255 / 0.04);
   --glass-border: rgb(255 255 255 / 0.13);
   --glass-hairline: rgb(0 0 0 / 0.35);
-  --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.25), 0 10px 28px -14px rgb(0 0 0 / 0.55);
-  --glass-shadow-strong: 0 2px 4px rgb(0 0 0 / 0.3), 0 18px 44px -18px rgb(0 0 0 / 0.7);
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 4px 12px -8px rgb(0 0 0 / 0.3);
+  --glass-shadow-strong: 0 2px 4px rgb(0 0 0 / 0.22), 0 10px 24px -12px rgb(0 0 0 / 0.45);
   --field-bg: rgb(255 255 255 / 0.05);
+  --field-border: rgb(255 255 255 / 0.14);
   --ambient-a: oklch(0.38 0.05 255 / 0.5);
   --ambient-b: oklch(0.32 0.06 15 / 0.32);
   --ambient-c: oklch(0.34 0.04 190 / 0.32);
@@ -103,6 +115,7 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-ring: var(--ring);
+  --color-info: var(--info);
   --color-border: var(--glass-border);
   --color-input: var(--field-bg);
   --radius-lg: var(--radius);
@@ -129,7 +142,18 @@
     font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
+    overflow-x: clip;
+    overflow-y: hidden;
+  }
+  html {
+    overflow-x: clip;
+  }
+  h1,
+  h2,
+  h3 {
+    overflow-wrap: break-word;
+    min-width: 0;
+    text-wrap: balance;
   }
   ::selection {
     background: color-mix(in oklab, var(--rose) 28%, transparent);
@@ -187,8 +211,7 @@
 }
 @utility field {
   background: var(--field-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 0 0 1px var(--glass-hairline);
+  border: 1px solid var(--field-border);
 }
 
 /* soft, non-distracting transitions */
@@ -216,6 +239,11 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* focus rings appear instantly (no transition on focus) */
+:focus-visible {
+  transition-duration: 0s !important;
 }
 
 /* log console */

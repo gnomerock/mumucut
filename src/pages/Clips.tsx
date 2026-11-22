@@ -5,11 +5,11 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ClipStatusBadge, Empty, PageHeader } from "@/components/common";
+import { ClipStatusBadge, Empty, PageHeader, Skeleton } from "@/components/common";
 import { fmtTime } from "@/lib/utils";
 
 export default function Clips() {
-  const { clips, project, openClip, refresh, err } = useApp();
+  const { clips, loading, project, openClip, refresh, err } = useApp();
   const total = project?.config.steps.length ?? 0;
   const list = clips.filter((c) => c.status === "draft" || c.status === "making" || c.status === "blocked");
 
@@ -26,13 +26,19 @@ export default function Clips() {
 
   return (
     <div>
-      <PageHeader title="คิวทำคลิป" desc="คลิปที่กำลังทำ — เปิดดูเพื่อรันทีละขั้นตอน">
+      <PageHeader title="คิวทำคลิป" desc="คลิปที่กำลังทำ เปิดดูเพื่อรันทีละขั้นตอน">
         <Button onClick={newClip} disabled={!project}>
           <Plus /> คลิปใหม่
         </Button>
       </PageHeader>
       <GlassCard className="overflow-hidden">
-        {list.length === 0 ? (
+        {loading ? (
+          <div className="grid gap-3 p-5" aria-busy="true">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-9" />
+            ))}
+          </div>
+        ) : list.length === 0 ? (
           <Empty icon={<Clapperboard />} title="ไม่มีคลิปค้างอยู่" desc="กด “คลิปใหม่” แล้วรัน flow ตั้งแต่เลือกหัวข้อไปจนลงคลัง" />
         ) : (
           <div className="grid divide-y divide-[var(--glass-hairline)]">

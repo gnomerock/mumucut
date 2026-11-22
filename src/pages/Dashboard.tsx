@@ -48,7 +48,7 @@ export default function Dashboard() {
             {order.map((s, i) => (
               <motion.div key={s} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04, duration: 0.3 }}>
                 <GlassCard className="px-4 py-3.5">
-                  <div className="text-[28px] font-semibold leading-none tracking-tight">{stats?.by_status?.[s] ?? 0}</div>
+                  <div className="text-[28px] font-semibold leading-none tracking-tight tabular-nums">{stats?.by_status?.[s] ?? 0}</div>
                   <div className="mt-1.5 text-[13px] text-muted-foreground">{clipStatusMeta[s].label}</div>
                 </GlassCard>
               </motion.div>
@@ -59,7 +59,7 @@ export default function Dashboard() {
             <CardHeader>
               <div>
                 <CardTitle>ลำดับงาน (flow)</CardTitle>
-                <CardDesc>{steps.length} ขั้นตอนต่อคลิป — AI เขียนบท/ออกแบบ, สคริปต์ทำเสียง ภาพ เรนเดอร์, คนตรวจก่อนไปต่อ</CardDesc>
+                <CardDesc>{steps.length} ขั้นตอนต่อคลิป AI เขียนบท/ออกแบบ, สคริปต์ทำเสียง ภาพ เรนเดอร์, คนตรวจก่อนไปต่อ</CardDesc>
               </div>
             </CardHeader>
             <CardBody>
@@ -69,8 +69,8 @@ export default function Dashboard() {
                     <div className="glass-subtle flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-[13px]">
                       <span className="grid size-5 place-items-center rounded-full bg-foreground/10 text-[11px] font-semibold">{i + 1}</span>
                       {s.label}
-                      {s.kind === "ai" && <span className="text-[10px] font-semibold uppercase text-rose">AI</span>}
-                      {s.gate && <span className="text-[10px] text-warning">ตรวจ</span>}
+                      {s.kind === "ai" && <span className="text-xs font-medium text-muted-foreground">AI</span>}
+                      {s.gate && <span className="text-xs text-muted-foreground">ตรวจ</span>}
                     </div>
                     {i < steps.length - 1 && <ArrowRight className="mx-1 size-3.5 text-muted-foreground/60" />}
                   </div>

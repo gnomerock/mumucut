@@ -141,8 +141,8 @@ export default function ClipPage() {
             <h1 className="text-[22px] font-semibold leading-tight tracking-tight">{clip.title || "(ยังไม่มีชื่อ)"}</h1>
             <p className="text-sm text-muted-foreground">
               {clip.ref || "ยังไม่ได้เลือกหัวข้อ"}
-              {clip.duration != null && ` · ${fmtDuration(clip.duration)}`}
-              {clip.lufs != null && ` · ${clip.lufs.toFixed(1)} LUFS`}
+              {clip.duration != null && `, ${fmtDuration(clip.duration)}`}
+              {clip.lufs != null && `, ${clip.lufs.toFixed(1)} LUFS`}
             </p>
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function ClipPage() {
                         onClick={() => setSelected(s.key)}
                         className={cn(
                           "soft relative flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          active ? "bg-[var(--glass-bg-strong)] shadow-sm ring-1 ring-[var(--glass-hairline)]" : "hover:bg-[var(--glass-bg-subtle)]",
+                          active ? "bg-[var(--glass-bg-strong)]" : "hover:bg-[var(--glass-bg-subtle)]",
                         )}
                       >
                         <StepDot status={st} />
@@ -201,7 +201,7 @@ export default function ClipPage() {
                           <span className="block truncate text-sm font-medium">{s.label}</span>
                           <span className="block truncate text-[11px] text-muted-foreground">
                             {kindMeta[s.kind]?.label}
-                            {s.gate ? " · ต้องตรวจ" : ""}
+                            {s.gate ? ", ต้องตรวจ" : ""}
                           </span>
                         </span>
                         {st !== "pending" && st !== "done" && <span className="text-[11px] text-muted-foreground">{stepStatusLabel[st]}</span>}
@@ -340,7 +340,7 @@ function StepPanel({
         ) : (
           <div className="glass-subtle console max-h-[340px] min-h-[140px] overflow-auto rounded-md p-3">
             {lines.length === 0 ? (
-              <span className="text-muted-foreground">{running ? "กำลังเริ่ม…" : "ยังไม่มี log — กด “รัน” เพื่อเริ่มขั้นตอนนี้"}</span>
+              <span className="text-muted-foreground">{running ? "กำลังเริ่ม…" : "ยังไม่มี log กด “รัน” เพื่อเริ่มขั้นตอนนี้"}</span>
             ) : (
               lines.map((l, i) => (
                 <div key={i} className={cn("whitespace-pre-wrap break-words", l.startsWith("✗") || l.includes("ล้มเหลว") ? "text-rose" : l.startsWith("✓") ? "text-success" : "")}>
@@ -403,7 +403,7 @@ function InfoTab({ clip, onSaved }: { clip: Clip; onSaved: () => Promise<void> }
         {video ? (
           <video src={video} controls className="aspect-[9/16] w-full bg-black/80 object-contain" poster={fileUrl(clip.cover_path)} />
         ) : (
-          <div className="grid aspect-[9/16] place-items-center px-4 text-center text-sm text-muted-foreground">ยังไม่มีวิดีโอ — จะแสดงหลังขั้นตอนเรนเดอร์/ตรวจไฟล์</div>
+          <div className="grid aspect-[9/16] place-items-center px-4 text-center text-sm text-muted-foreground">ยังไม่มีวิดีโอ จะแสดงหลังขั้นตอนเรนเดอร์/ตรวจไฟล์</div>
         )}
       </GlassCard>
     </div>
@@ -428,7 +428,7 @@ function ScriptTab({ clip, onSaved }: { clip: Clip; onSaved: () => Promise<void>
         <CardHeader>
           <div>
             <CardTitle>บท (JSON)</CardTitle>
-            <CardDesc>แก้เองได้ — ถ้าบันทึกลงไฟล์ ขั้นตอนถัดไปจะใช้ไฟล์นี้</CardDesc>
+            <CardDesc>แก้เองได้ ถ้าบันทึกลงไฟล์ ขั้นตอนถัดไปจะใช้ไฟล์นี้</CardDesc>
           </div>
         </CardHeader>
         <CardBody className="grid gap-3">
@@ -475,7 +475,7 @@ function ScriptTab({ clip, onSaved }: { clip: Clip; onSaved: () => Promise<void>
         <CardHeader><CardTitle>บรรทัดบรรยาย</CardTitle></CardHeader>
         <CardBody className="grid gap-2">
           {lines.length === 0 ? (
-            <p className="text-sm text-muted-foreground">ยังไม่มีบท — รันขั้นตอน “เขียนบท”</p>
+            <p className="text-sm text-muted-foreground">ยังไม่มีบท รันขั้นตอน “เขียนบท”</p>
           ) : (
             lines.map((l, i) => (
               <div key={i} className="glass-subtle rounded-md px-3 py-2 text-sm">
@@ -519,7 +519,7 @@ function PostsTab({ clip, posts, onChange }: { clip: Clip; posts: Post[]; onChan
                       {platforms.find((x) => x.id === p.platform)?.label ?? p.platform}
                       <Badge tone={p.status === "posted" ? "success" : p.status === "cancelled" ? "neutral" : "info"}>{p.status === "posted" ? "โพสต์แล้ว" : p.status === "cancelled" ? "ยกเลิก" : "ตั้งเวลา"}</Badge>
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">{p.scheduled_at || "ไม่ระบุเวลา"} {p.url && `· ${p.url}`}</div>
+                    <div className="truncate text-xs text-muted-foreground">{p.scheduled_at || "ไม่ระบุเวลา"}{p.url ? `, ${p.url}` : ""}</div>
                   </div>
                   {p.status === "scheduled" && (
                     <Button variant="glass" size="sm" onClick={async () => { try { await api.updatePost(p.id, "posted"); await onChange(); } catch (e) { err(e); } }}>
