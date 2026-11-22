@@ -1,0 +1,69 @@
+name: Release
+
+# Every push to main (a merged pull request is a push) builds the Windows app
+# and publishes a GitHub Release with the installer .exe, the .msi and a portable .exe.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Release tag
+        id: meta
+        shell: bash
+        run: |
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+
+      - name: Build and publish release
+        id: tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ steps.meta.outputs.tag }}
+          releaseName: MumuCut ${{ steps.meta.outputs.version }} (build ${{ github.run_number }})
+          releaseBody: |
+            Windows build of MumuCut from commit ${{ github.sha }}.
+            - `MumuCut_*_x64-setup.exe`: installer
+            - `MumuCut_*_x64_en-US.msi`: MSI installer
+            - `MumuCut_portable_x64.exe`: portable app (needs the Microsoft Edge WebView2 runtime, already present on Windows 11)
+          releaseDraft: false
+          prerelease: false
+
+      - name: Attach portable exe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp src-tauri/target/release/mumucut.exe MumuCut_portable_x64.exe
+          gh release upload "${{ steps.meta.outputs.tag }}" MumuCut_portable_x64.exe --clobber
