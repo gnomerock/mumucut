@@ -84,6 +84,25 @@ export function PageHeader({ title, desc, children }: { title: string; desc?: st
   );
 }
 
+const avatarHues = [350, 20, 45, 150, 190, 220, 265, 300];
+
+/** Coloured initial for a channel (no images needed). */
+export function ChannelAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+  const chars = Array.from(name.trim());
+  let h = 0;
+  for (const ch of chars) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
+  const hue = avatarHues[h % avatarHues.length];
+  return (
+    <span
+      aria-hidden
+      className={cn("grid shrink-0 place-items-center rounded-md font-semibold text-white", size === "sm" ? "size-6 text-[11px]" : "size-8 text-sm")}
+      style={{ background: `linear-gradient(140deg, oklch(0.72 0.13 ${hue}), oklch(0.58 0.15 ${hue + 25}))` }}
+    >
+      {chars.find((c) => !"เแโใไ".includes(c))?.toUpperCase() ?? "?"}
+    </span>
+  );
+}
+
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded-md bg-[color-mix(in_oklab,var(--foreground)_9%,transparent)]", className)} aria-hidden />;
 }

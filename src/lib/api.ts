@@ -1,7 +1,7 @@
 import { invoke as tauriInvoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
-  Agent, TestResult,
+  Agent, TestResult, Asset, AffiliateLink, ClipAffiliate, SocialAccount, ProviderStatus,
   Clip, ClipDetail, LogEvent, Post, Project, Settings, Stats, StatusEvent, StepRow, StepStatus, ToolStatus,
 } from "./types";
 import { mockInvoke } from "./mock";
@@ -56,7 +56,70 @@ export const api = {
   pathExists: (path: string) => call<boolean>("path_exists", { path }),
   resolvePath: (workdir: string, rel: string, key: string) =>
     call<string>("resolve_project_path", { workdir, rel, key }),
+  ensureDir: (path: string) => call<void>("ensure_dir", { path }),
+
+  assets: (channelId: number | null, clipId?: number | null) => call<Asset[]>("list_assets", { channelId, clipId: clipId ?? null }),
+  addAssets: (paths: string[], channelId: number | null, clipId?: number | null) =>
+    call<Asset[]>("add_assets", { paths, channelId, clipId: clipId ?? null }),
+  updateAsset: (asset: Asset) => call<Asset>("update_asset", { asset }),
+  deleteAsset: (id: number) => call<void>("delete_asset", { id }),
+  useLibraryAsset: (assetId: number, clipId: number) => call<Asset>("use_library_asset", { assetId, clipId }),
+  shareAsset: (assetId: number) => call<Asset>("share_asset", { assetId }),
+  generateAsset: (channelId: number | null, clipId: number | null, kind: "image" | "speech" | "sfx", prompt: string) =>
+    call<Asset>("generate_asset", { channelId, clipId, kind, prompt }),
+
+  affiliates: (channelId?: number | null) => call<AffiliateLink[]>("list_affiliates", { channelId: channelId ?? null }),
+  saveAffiliate: (link: AffiliateLink) => call<AffiliateLink>("save_affiliate", { link }),
+  deleteAffiliate: (id: number) => call<void>("delete_affiliate", { id }),
+  clipAffiliates: (clipId: number) => call<ClipAffiliate[]>("list_clip_affiliates", { clipId }),
+  attachAffiliate: (clipId: number, linkId: number, placement: string) => call<void>("attach_affiliate", { clipId, linkId, placement }),
+  detachAffiliate: (clipId: number, linkId: number) => call<void>("detach_affiliate", { clipId, linkId }),
+
+  accounts: (channelId?: number | null) => call<SocialAccount[]>("list_accounts", { channelId: channelId ?? null }),
+  saveAccount: (account: SocialAccount) => call<SocialAccount>("save_account", { account }),
+  deleteAccount: (id: number) => call<void>("delete_account", { id }),
+  setAccountToken: (id: number, token: string) => call<void>("set_account_token", { id, token }),
+  clearAccountToken: (id: number) => call<void>("clear_account_token", { id }),
+
+  providerStatus: (channelId: number | null) => call<ProviderStatus[]>("provider_status", { channelId }),
+  setProviderKey: (id: string, key: string) => call<void>("set_provider_key", { id, key }),
+  clearProviderKey: (id: string) => call<void>("clear_provider_key", { id }),
+  runInstaller: (id: string, channelId: number | null) => call<string>("run_installer", { id, channelId }),
+  testComfyMcp: () => call<string>("test_comfy_mcp"),
+
+  openStudio: (channelId: number) => call<string>("open_studio", { channelId }),
+  aiWrite: (prompt: string, agentId?: string) => call<string>("ai_write", { prompt, agentId: agentId ?? null }),
 };
+
+export async function pickFiles(filters?: { name: string; extensions: string[] }[]): Promise<string[]> {
+  if (!isTauri) return [];
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const r = await open({ multiple: true, directory: false, filters });
+  return Array.isArray(r) ? r : typeof r === "string" ? [r] : [];
+}
+
+export async function openUrl(url: string) {
+  if (!isTauri) {
+    window.open(url, "_blank", "noopener");
+    return;
+  }
+  const { openUrl: ou } = await import("@tauri-apps/plugin-opener");
+  await ou(url);
+}
+
+/** Folder that holds new channels: Settings → ทั่วไป → ที่เก็บโปรเจกต์, else Documents\MumuCut. */
+export async function projectsRoot(custom?: string): Promise<string> {
+  if (custom?.trim()) return custom.trim();
+  if (!isTauri) return "C:\\Users\\you\\Documents\\MumuCut";
+  const { documentDir, join } = await import("@tauri-apps/api/path");
+  return join(await documentDir(), "MumuCut");
+}
+
+export async function defaultChannelDir(name: string, root?: string): Promise<string> {
+  const safe = name.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g, "").replace(/\s+/g, "-") || "channel";
+  const base = await projectsRoot(root);
+  return `${base.replace(/[\\/]+$/, "")}\\${safe}`;
+}
 
 /** file path -> URL the webview can load (asset protocol) */
 export function fileUrl(path?: string | null): string | undefined {

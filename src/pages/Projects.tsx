@@ -1,488 +1,252 @@
-import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ArrowLeft, ArrowUp, Bot, Download, FolderOpen, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { motion } from "motion/react";
+import { FolderKanban, Plus, Search, Sparkles } from "lucide-react";
 import { useApp } from "@/lib/store";
-import { api, pickFolder } from "@/lib/api";
-import { blankConfig, defaultText, templates } from "@/lib/templates";
-import type { Project, ProjectConfig, StepDef, StepKind } from "@/lib/types";
+import { api, fileUrl } from "@/lib/api";
+import type { Clip, ClipStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { CardBody, CardDesc, CardHeader, CardTitle, GlassCard } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/card";
 import { Field, Input, Textarea } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Empty, PageHeader } from "@/components/common";
-import { cn } from "@/lib/utils";
+import { ChannelAvatar, ClipStatusBadge, Empty, Skeleton } from "@/components/common";
+import { cn, fmtDuration, fmtTime } from "@/lib/utils";
 
-export default function Projects() {
-  const { projects, refresh, err, notify, setProjectId } = useApp();
-  const [editing, setEditing] = useState<Project | null>(null);
+const filters: { id: string; label: string; dot: string; match: (s: ClipStatus) => boolean }[] = [
+  { id: "all", label: "ทั้งหมด", dot: "bg-foreground/40", match: () => true },
+  { id: "doing", label: "กำลังทำ", dot: "bg-info", match: (s) => s === "draft" || s === "making" || s === "blocked" },
+  { id: "ready", label: "พร้อมโพสต์", dot: "bg-success", match: (s) => s === "ready" },
+  { id: "scheduled", label: "ตั้งเวลาแล้ว", dot: "bg-info/60", match: (s) => s === "scheduled" },
+  { id: "posted", label: "โพสต์แล้ว", dot: "bg-foreground/25", match: (s) => s === "posted" },
+  { id: "hold", label: "พักไว้", dot: "bg-warning", match: (s) => s === "hold" },
+];
+
+/** The topic of a clip in one line: its brief, else its reference. */
+export function clipTopic(c: Clip) {
+  const b = c.brief.split("\n").map((s) => s.trim()).find(Boolean);
+  return b || c.ref || "";
+}
+
+export default function ProjectsPage() {
+  const { clips, loading, project, openClip } = useApp();
+  const [f, setF] = useState("all");
+  const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
+  const total = project?.config.steps.length ?? 0;
 
-  if (editing)
-    return (
-      <Editor
-        project={editing}
-        onBack={() => setEditing(null)}
-        onSaved={async (p) => {
-          try {
-            const saved = await api.saveProject(p);
-            setEditing(saved);
-            await refresh();
-            notify("บันทึกโปรเจกต์แล้ว");
-          } catch (e) {
-            err(e);
-          }
-        }}
-      />
-    );
+  const list = useMemo(() => {
+    const flt = filters.find((x) => x.id === f)!;
+    const s = q.trim().toLowerCase();
+    return clips
+      .filter((c) => flt.match(c.status))
+      .filter((c) => !s || [c.clip_key, c.title, c.ref, c.brief].some((t) => t.toLowerCase().includes(s)))
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  }, [clips, f, q]);
 
   return (
     <div>
-      <PageHeader title="โปรเจกต์" desc="แต่ละช่อง/ซีรีส์มีโฟลเดอร์งาน โฟลเดอร์คลัง สไตล์ข้อความ และ flow ของตัวเอง">
-        <Button onClick={() => setCreating(true)}>
+      <div className="flex items-end justify-between gap-4 pb-5">
+        <div className="flex items-center gap-3">
+          {project && <ChannelAvatar name={project.name} />}
+          <div>
+            <h1 className="text-[22px] font-semibold tracking-tight">Projects</h1>
+            <p className="mt-0.5 max-w-xl text-sm text-muted-foreground">
+              {project?.config.description || `โปรเจกต์คลิปของช่อง ${project?.name ?? ""} หนึ่งโปรเจกต์ = หนึ่งคลิป`}
+            </p>
+          </div>
+        </div>
+        <Button onClick={() => setCreating(true)} disabled={!project}>
           <Plus /> โปรเจกต์ใหม่
         </Button>
-      </PageHeader>
+      </div>
 
-      {projects.length === 0 ? (
-        <GlassCard>
-          <Empty icon={<FolderOpen />} title="ยังไม่มีโปรเจกต์" desc="เริ่มจากแม่แบบ “ธรรมะผู้สูงอายุ” เพื่อได้ flow เดียวกับที่ทำอยู่ แล้วนำเข้าคลิปเดิมจากโฟลเดอร์คลัง">
-            <Button onClick={() => setCreating(true)}><Plus /> สร้างโปรเจกต์</Button>
-          </Empty>
-        </GlassCard>
-      ) : (
-        <div className="grid gap-3.5">
-          {projects.map((p, i) => (
-            <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-              <GlassCard>
-                <CardHeader>
-                  <div className="min-w-0">
-                    <CardTitle className="text-base">{p.name}</CardTitle>
-                    <CardDesc className="mt-0.5 truncate font-mono text-xs">{p.workdir || "(ยังไม่ตั้งโฟลเดอร์งาน)"}</CardDesc>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="glass"
-                      size="sm"
-                      title="อ่านโฟลเดอร์คลังแล้วเพิ่มคลิปที่ยังไม่อยู่ในโปรแกรม"
-                      onClick={async () => {
-                        try {
-                          const n = await api.importLibrary(p.id);
-                          setProjectId(p.id);
-                          await refresh();
-                          notify(n > 0 ? `นำเข้า ${n} คลิปจากคลัง` : "ไม่มีคลิปใหม่ให้นำเข้า");
-                        } catch (e) {
-                          err(e);
-                        }
-                      }}
-                    >
-                      <Download /> นำเข้าจากคลัง
-                    </Button>
-                    <Button variant="glass" size="sm" onClick={() => setEditing(p)}>
-                      <Pencil /> แก้ไข
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="icon-sm"
-                      title="ลบโปรเจกต์ (ไฟล์บนดิสก์ไม่ถูกลบ)"
-                      onClick={async () => {
-                        if (!window.confirm(`ลบโปรเจกต์ “${p.name}” และคลิปทั้งหมดในโปรแกรม? (ไฟล์บนดิสก์ไม่ถูกลบ)`)) return;
-                        try {
-                          await api.deleteProject(p.id);
-                          await refresh();
-                        } catch (e) {
-                          err(e);
-                        }
-                      }}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardBody className="flex flex-wrap items-center gap-2 pt-2 text-[13px] text-muted-foreground">
-                  <Badge>{p.config.steps.length} ขั้นตอน</Badge>
-                  <Badge>{p.config.width}×{p.config.height}</Badge>
-                  <Badge>{p.config.fps} fps</Badge>
-                  <Badge>ไม่เกิน {p.config.max_seconds} วิ</Badge>
-                  <Badge>ฟอนต์ {p.config.text?.font ?? "–"}</Badge>
-                  <Badge>รหัส {p.key_prefix}nn</Badge>
-                  <span className="truncate font-mono text-xs">คลัง: {p.library_dir || "–"}</span>
-                </CardBody>
-              </GlassCard>
-            </motion.div>
-          ))}
+      <div className="grid grid-cols-6 gap-3 pb-3.5" role="tablist" aria-label="กรองตามสถานะ">
+        {filters.map((k, i) => {
+          const n = clips.filter((c) => k.match(c.status)).length;
+          const active = f === k.id;
+          return (
+            <motion.button
+              key={k.id}
+              role="tab"
+              aria-selected={active}
+              title={active && k.id !== "all" ? "กดอีกครั้งเพื่อดูทั้งหมด" : `ดูเฉพาะ ${k.label}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04, duration: 0.3 }}
+              onClick={() => setF(active ? "all" : k.id)}
+              className={cn(
+                "soft glass rounded-lg px-4 py-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                active ? "bg-[var(--glass-bg-strong)] ring-2 ring-foreground/55" : "hover:bg-[var(--glass-bg-strong)]",
+              )}
+            >
+              <div className={cn("text-[28px] font-semibold leading-none tracking-tight tabular-nums", n === 0 && "text-muted-foreground/60")}>{n}</div>
+              <div className={cn("mt-1.5 flex items-center gap-1.5 text-[13px]", active ? "font-medium text-foreground" : "text-muted-foreground")}>
+                <span className={cn("size-2 rounded-full", k.dot)} />
+                {k.label}
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-3 pb-3.5">
+        <div className="relative max-w-md flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ค้นหารหัส ชื่อคลิป หรือเรื่องที่เล่า" className="pl-9" aria-label="ค้นหาโปรเจกต์" />
         </div>
-      )}
+        <span className="text-[13px] text-muted-foreground">
+          {f !== "all" || q.trim() ? `พบ ${list.length} จาก ${clips.length} โปรเจกต์` : `${clips.length} โปรเจกต์`}
+        </span>
+        {(f !== "all" || q.trim()) && (
+          <Button variant="ghost" size="sm" onClick={() => { setF("all"); setQ(""); }}>
+            ล้างตัวกรอง
+          </Button>
+        )}
+      </div>
 
-      <CreateDialog open={creating} onOpenChange={setCreating} />
+      <GlassCard className="overflow-hidden">
+        {loading ? (
+          <div className="grid gap-3 p-5" aria-busy="true">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-14" />
+            ))}
+          </div>
+        ) : list.length === 0 ? (
+          <Empty
+            icon={<FolderKanban />}
+            title={clips.length === 0 ? "ยังไม่มีโปรเจกต์คลิปในช่องนี้" : "ไม่พบโปรเจกต์ที่ตรงกับตัวกรอง"}
+            desc={clips.length === 0 ? "เริ่มจากบอกว่าคลิปแรกจะเล่าเรื่องอะไร แล้วไปต่อที่ Scripts" : undefined}
+          >
+            {clips.length === 0 && (
+              <Button onClick={() => setCreating(true)}>
+                <Plus /> สร้างโปรเจกต์แรก
+              </Button>
+            )}
+          </Empty>
+        ) : (
+          <div className="grid divide-y divide-[var(--glass-hairline)]">
+            <div className="grid grid-cols-[44px_72px_1fr_170px_120px_92px] gap-3 px-5 py-2.5 text-xs font-medium text-muted-foreground">
+              <span />
+              <span>รหัส</span>
+              <span>คลิปนี้เล่าเรื่องอะไร</span>
+              <span>ความคืบหน้า</span>
+              <span>สถานะ</span>
+              <span className="text-right">อัปเดต</span>
+            </div>
+            {list.map((c, i) => {
+              const cover = fileUrl(c.cover_path);
+              const topic = clipTopic(c);
+              return (
+                <motion.button
+                  key={c.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i, 8) * 0.03 }}
+                  onClick={() => openClip(c.id)}
+                  className="soft grid grid-cols-[44px_72px_1fr_170px_120px_92px] items-center gap-3 px-5 py-2.5 text-left outline-none hover:bg-[var(--glass-bg-subtle)] focus-visible:bg-[var(--glass-bg-subtle)]"
+                >
+                  <span className="grid aspect-[9/16] w-9 place-items-center overflow-hidden rounded-[5px] bg-[linear-gradient(160deg,var(--muted),transparent)]">
+                    {cover ? <img src={cover} alt="" className="size-full object-cover" loading="lazy" /> : <FolderKanban className="size-3.5 text-muted-foreground/60" />}
+                  </span>
+                  <span className="font-mono text-[13px] font-medium">{c.clip_key}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{c.title || <span className="text-muted-foreground">(ยังไม่มีชื่อ)</span>}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {topic || "ยังไม่ได้ใส่เรื่องของคลิป"}
+                      {c.duration != null && ` · ${fmtDuration(c.duration)}`}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Progress value={(c.done_steps / Math.max(1, total)) * 100} />
+                    <span className="w-9 text-right text-xs text-muted-foreground">{c.done_steps}/{total}</span>
+                  </span>
+                  <ClipStatusBadge status={c.status} />
+                  <span className="text-right text-xs text-muted-foreground">{fmtTime(c.updated_at).slice(5)}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        )}
+      </GlassCard>
+
+      <NewProjectDialog open={creating} onOpenChange={setCreating} />
     </div>
   );
 }
 
-function CreateDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { refresh, err, notify, setProjectId } = useApp();
-  const [tid, setTid] = useState("dhamma");
-  const t = templates.find((x) => x.id === tid)!;
-  const [name, setName] = useState("");
-  const [workdir, setWorkdir] = useState<string | null>(null);
-  const [library, setLibrary] = useState<string | null>(null);
-  const [prefix, setPrefix] = useState<string | null>(null);
-  const pick = async (set: (s: string) => void) => {
-    const f = await pickFolder();
-    if (f) set(f);
-  };
+function NewProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { project, clips, refresh, openClip, err, notify } = useApp();
+  const [title, setTitle] = useState("");
+  const [brief, setBrief] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const usesPool = !!project?.config.pool.csv;
+
+  async function suggest() {
+    if (!project) return;
+    setThinking(true);
+    try {
+      const recent = clips.slice(0, 15).map((c) => `- ${c.title || c.ref}`).filter((s) => s.length > 2).join("\n");
+      const ans = await api.aiWrite(
+        `ช่อง "${project.name}": ${project.config.description || "(ไม่มีคำอธิบาย)"}\nคลิปที่ทำไปแล้ว:\n${recent || "- (ยังไม่มี)"}\n\nเสนอหัวข้อคลิปถัดไป 1 เรื่องที่ไม่ซ้ำ ตอบเป็น JSON อย่างเดียว: {"title":"ชื่อคลิปสั้น ๆ","brief":"คลิปนี้เล่าเรื่องอะไร 2-3 ประโยค"}`,
+      );
+      const m = ans.match(/\{[\s\S]*\}/);
+      const j = m ? JSON.parse(m[0]) : null;
+      if (j?.title) setTitle(String(j.title));
+      setBrief(j?.brief ? String(j.brief) : ans);
+    } catch (e) {
+      err(e);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  async function create() {
+    if (!project) return;
+    setBusy(true);
+    try {
+      const c = await api.createClip(project.id);
+      if (title.trim() || brief.trim()) await api.updateClip(c.id, { title: title.trim(), brief: brief.trim() });
+      await refresh();
+      onOpenChange(false);
+      setTitle("");
+      setBrief("");
+      openClip(c.id, "scripts");
+      notify(`สร้างโปรเจกต์ ${c.clip_key} แล้ว`);
+    } catch (e) {
+      err(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <div>
-          <DialogTitle>โปรเจกต์ใหม่</DialogTitle>
-          <DialogDescription>เลือกแม่แบบ flow แล้วชี้โฟลเดอร์งานกับโฟลเดอร์คลัง</DialogDescription>
+          <DialogTitle>โปรเจกต์คลิปใหม่</DialogTitle>
+          <DialogDescription>
+            ช่อง {project?.name} · {usesPool ? "เว้นว่างได้ ขั้นตอน เลือกหัวข้อ จะหยิบจากคลังหัวข้อของช่องให้" : "บอกสั้น ๆ ว่าคลิปนี้เล่าเรื่องอะไร"}
+          </DialogDescription>
         </div>
-        <div className="grid gap-2">
-          {templates.map((x) => (
-            <button
-              key={x.id}
-              onClick={() => { setTid(x.id); setWorkdir(null); setLibrary(null); setPrefix(null); }}
-              className={cn("soft rounded-lg border p-3.5 text-left", tid === x.id ? "bg-[var(--glass-bg-strong)] ring-1 ring-ring" : "hover:bg-[var(--glass-bg-subtle)]")}
-            >
-              <div className="text-sm font-semibold">{x.name}</div>
-              <div className="text-[13px] text-muted-foreground">{x.desc}</div>
-            </button>
-          ))}
-        </div>
-        <Field label="ชื่อโปรเจกต์"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.id === "dhamma" ? "ธรรมะผู้สูงอายุ" : "ช่องของฉัน"} /></Field>
-        <Field label="โฟลเดอร์งาน (โปรเจกต์ที่เรนเดอร์คลิป)">
-          <div className="flex gap-2">
-            <Input value={workdir ?? t.workdir} onChange={(e) => setWorkdir(e.target.value)} className="font-mono text-[13px]" />
-            <Button variant="glass" size="icon" onClick={() => pick(setWorkdir)} title="เลือกโฟลเดอร์"><FolderOpen /></Button>
-          </div>
+        <Field label="ชื่อคลิป">
+          <Input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น ถูกคลื่นดูด ทำยังไง" />
         </Field>
-        <Field label="โฟลเดอร์คลัง (ที่เก็บคลิปที่เสร็จแล้ว)">
-          <div className="flex gap-2">
-            <Input value={library ?? t.library} onChange={(e) => setLibrary(e.target.value)} className="font-mono text-[13px]" />
-            <Button variant="glass" size="icon" onClick={() => pick(setLibrary)} title="เลือกโฟลเดอร์"><FolderOpen /></Button>
-          </div>
+        <Field label="คลิปนี้เล่าเรื่องอะไร" hint="ส่งให้ AI เป็นโจทย์ตอนเขียนบท ({brief})">
+          <Textarea rows={4} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="ประเด็นหลัก กลุ่มคนดู แหล่งข้อมูล หรือมุกที่อยากได้" />
         </Field>
-        <Field label="ตัวอักษรนำหน้ารหัสคลิป" hint="เช่น EP → EP01, EP02 …"><Input className="w-28" value={prefix ?? t.prefix} onChange={(e) => setPrefix(e.target.value)} /></Field>
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
-          <Button
-            onClick={async () => {
-              try {
-                const lib = library ?? t.library;
-                const p = await api.saveProject({
-                  id: 0,
-                  name: name.trim() || (t.id === "dhamma" ? "ธรรมะผู้สูงอายุ" : "โปรเจกต์ใหม่"),
-                  workdir: workdir ?? t.workdir,
-                  library_dir: lib,
-                  key_prefix: prefix ?? t.prefix,
-                  config: t.id === "dhamma" ? t.config() : blankConfig(),
-                });
-                setProjectId(p.id);
-                await refresh();
-                onOpenChange(false);
-                notify(`สร้างโปรเจกต์ “${p.name}” แล้ว`);
-              } catch (e) {
-                err(e);
-              }
-            }}
-          >
-            สร้าง
+        <div className="flex items-center justify-between gap-2">
+          <Button variant="glass" onClick={suggest} disabled={thinking || !project}>
+            <Sparkles className={cn(thinking && "animate-pulse")} /> {thinking ? "AI กำลังคิด…" : "AI ช่วยคิดหัวข้อ"}
           </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>ยกเลิก</Button>
+            <Button onClick={create} disabled={busy}>
+              <Plus /> สร้างโปรเจกต์
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-const kinds: { id: StepKind; label: string }[] = [
-  { id: "pick", label: "เลือกหัวข้อจากคลัง (CSV)" },
-  { id: "ai", label: "AI (เขียนบท/ออกแบบ)" },
-  { id: "shell", label: "สคริปต์/คำสั่ง" },
-  { id: "check", label: "ตรวจไฟล์วิดีโอ" },
-  { id: "deliver", label: "ลงคลัง" },
-  { id: "manual", label: "ยืนยันเอง" },
-  { id: "post", label: "ตั้งโพสต์" },
-];
-
-function num(v: string, d = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : d;
-}
-
-function Editor({ project, onBack, onSaved }: { project: Project; onBack: () => void; onSaved: (p: Project) => Promise<void> }) {
-  const { agents } = useApp();
-  const [p, setP] = useState<Project>(structuredClone(project));
-  const c = p.config;
-  const setC = (patch: Partial<ProjectConfig>) => setP({ ...p, config: { ...c, ...patch } });
-  const text = c.text ?? defaultText();
-  const setStep = (i: number, patch: Partial<StepDef>) => setC({ steps: c.steps.map((s, k) => (k === i ? { ...s, ...patch } : s)) });
-  const [open, setOpen] = useState<number | null>(null);
-  const dirty = JSON.stringify(p) !== JSON.stringify(project);
-
-  return (
-    <div>
-      <PageHeader title={p.name || "โปรเจกต์"} desc="แก้ค่าแล้วกดบันทึก มีผลกับคลิปที่รันหลังจากนี้">
-        <Button variant="glass" onClick={onBack}><ArrowLeft /> กลับ</Button>
-        <Button disabled={!dirty} onClick={() => onSaved(p)}><Save /> บันทึก</Button>
-      </PageHeader>
-      <Tabs defaultValue="general">
-        <TabsList>
-          <TabsTrigger value="general">ทั่วไป</TabsTrigger>
-          <TabsTrigger value="style">สไตล์ข้อความ</TabsTrigger>
-          <TabsTrigger value="steps">ขั้นตอน ({c.steps.length})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="general" className="grid gap-4 pt-4">
-          <GlassCard>
-            <CardHeader>
-              <div>
-                <CardTitle>ใครเป็นคนรันขั้นตอน</CardTitle>
-                <CardDesc>เลือกว่าคนกดรันทีละขั้นตอน หรือให้ AI agent คุมทั้ง flow ตั้งแต่เลือกหัวข้อจนลงคลัง</CardDesc>
-              </div>
-            </CardHeader>
-            <CardBody className="grid gap-4">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { id: "steps", title: "คนกดรันทีละขั้นตอน", desc: "แอพรันตามที่กด AI ช่วยเฉพาะขั้นตอนเขียนข้อความ" },
-                  { id: "agent", title: "agent คุมทั้ง flow", desc: "agent รันขั้นตอนตามลำดับ เขียนบทเอง แก้เมื่อล้มเหลว และหยุดรอคนที่จุดตรวจ" },
-                ].map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => setC({ run_mode: o.id as "steps" | "agent" })}
-                    className={cn("soft rounded-lg border p-3.5 text-left", (c.run_mode ?? "steps") === o.id ? "bg-[var(--glass-bg-strong)] ring-1 ring-ring" : "hover:bg-[var(--glass-bg-subtle)]")}
-                  >
-                    <div className="text-sm font-semibold">{o.title}</div>
-                    <div className="mt-1 text-[13px] text-muted-foreground">{o.desc}</div>
-                  </button>
-                ))}
-              </div>
-              {c.run_mode === "agent" && (
-                <>
-                  <Field label="agent ที่คุม flow" hint="ต้องเป็นผู้ให้บริการที่คุมทั้ง flow ได้ (Claude Code หรือ CLI ที่รองรับ MCP) agent ไม่ได้สิทธิ์ shell มีแค่เครื่องมือของ MumuCut และไม่โพสต์อะไรเอง">
-                    <Select value={c.flow_agent || "default"} onValueChange={(v) => setC({ flow_agent: v === "default" ? "" : v })}>
-                      <SelectTrigger>{c.flow_agent ? agents.find((a) => String(a.id) === c.flow_agent)?.name ?? "ไม่พบ agent" : `ค่าเริ่มต้น (${agents.find((a) => a.is_default)?.name ?? "-"})`}</SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="default">ค่าเริ่มต้น ({agents.find((a) => a.is_default)?.name ?? "-"})</SelectItem>
-                        {agents.map((a) => (
-                          <SelectItem key={a.id} value={String(a.id)}>
-                            {a.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="คำสั่งของโปรเจกต์ถึง agent (ไม่บังคับ)" hint="เว้นว่างเพื่อใช้ข้อความมาตรฐานของ MumuCut ตัวแปร: {agent} {key}">
-                    <Textarea rows={6} value={c.flow_prompt ?? ""} onChange={(e) => setC({ flow_prompt: e.target.value })} placeholder="ข้อความมาตรฐาน: ทำตามลำดับ เขียนบทเอง หยุดที่จุดตรวจ ไม่โพสต์ รายงานเป็นภาษาไทย" />
-                  </Field>
-                </>
-              )}
-            </CardBody>
-          </GlassCard>
-          <GlassCard>
-            <CardBody className="grid gap-4 pt-5">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="ชื่อ"><Input value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} /></Field>
-                <Field label="รหัสนำหน้า"><Input value={p.key_prefix} onChange={(e) => setP({ ...p, key_prefix: e.target.value })} /></Field>
-                <Field label="โฟลเดอร์งาน" hint="คำสั่งทุกขั้นตอนรันที่นี่"><Input className="font-mono text-[13px]" value={p.workdir} onChange={(e) => setP({ ...p, workdir: e.target.value })} /></Field>
-                <Field label="โฟลเดอร์คลัง"><Input className="font-mono text-[13px]" value={p.library_dir} onChange={(e) => setP({ ...p, library_dir: e.target.value })} /></Field>
-              </div>
-              <div className="grid grid-cols-4 gap-4">
-                <Field label="กว้าง (px)"><Input type="number" value={c.width} onChange={(e) => setC({ width: num(e.target.value, 1080) })} /></Field>
-                <Field label="สูง (px)"><Input type="number" value={c.height} onChange={(e) => setC({ height: num(e.target.value, 1920) })} /></Field>
-                <Field label="เฟรมเรต"><Input type="number" value={c.fps} onChange={(e) => setC({ fps: num(e.target.value, 30) })} /></Field>
-                <Field label="ยาวสุด (วินาที)"><Input type="number" value={c.max_seconds} onChange={(e) => setC({ max_seconds: num(e.target.value, 30) })} /></Field>
-                <Field label="LUFS ต่ำสุด"><Input type="number" step="0.5" value={c.lufs_min} onChange={(e) => setC({ lufs_min: num(e.target.value) })} /></Field>
-                <Field label="LUFS สูงสุด"><Input type="number" step="0.5" value={c.lufs_max} onChange={(e) => setC({ lufs_max: num(e.target.value) })} /></Field>
-                <Field label="พีคสูงสุด (dBFS)"><Input type="number" step="0.5" value={c.peak_max} onChange={(e) => setC({ peak_max: num(e.target.value) })} /></Field>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="ไฟล์วิดีโอที่ได้ (เทียบกับโฟลเดอร์งาน)" hint="ใช้ {key} แทนรหัสคลิป"><Input className="font-mono text-[13px]" value={c.video_file} onChange={(e) => setC({ video_file: e.target.value })} /></Field>
-                <Field label="ไฟล์ปก"><Input className="font-mono text-[13px]" value={c.cover_file} onChange={(e) => setC({ cover_file: e.target.value })} /></Field>
-              </div>
-              <Field label="ไฟล์เพิ่มที่คัดลอกลงคลัง (บรรทัดละไฟล์, ใช้ * ในชื่อไฟล์ได้)">
-                <Textarea rows={3} className="font-mono text-[13px]" value={c.extra_files.join("\n")} onChange={(e) => setC({ extra_files: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })} />
-              </Field>
-              <div>
-                <div className="pb-2 text-sm font-semibold">คลังหัวข้อ (CSV) สำหรับขั้นตอน “เลือกหัวข้อ”</div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="ไฟล์ CSV" hint="ใส่ * ได้ เช่น quotes_candidates*.csv"><Input className="font-mono text-[13px]" value={c.pool.csv} onChange={(e) => setC({ pool: { ...c.pool, csv: e.target.value } })} /></Field>
-                  <Field label="ข้อความนำหน้าอ้างอิง"><Input value={c.pool.ref_prefix} onChange={(e) => setC({ pool: { ...c.pool, ref_prefix: e.target.value } })} /></Field>
-                </div>
-                <div className="mt-3 grid grid-cols-5 gap-4">
-                  <Field label="คอลัมน์ที่อ้างอิง"><Input type="number" value={c.pool.ref_col} onChange={(e) => setC({ pool: { ...c.pool, ref_col: num(e.target.value) } })} /></Field>
-                  <Field label="คอลัมน์ชื่อ"><Input type="number" value={c.pool.title_col} onChange={(e) => setC({ pool: { ...c.pool, title_col: num(e.target.value) } })} /></Field>
-                  <Field label="คอลัมน์ต้นฉบับ"><Input value={c.pool.brief_cols.join(",")} onChange={(e) => setC({ pool: { ...c.pool, brief_cols: e.target.value.split(",").map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n >= 0) } })} /></Field>
-                  <Field label="คอลัมน์ “ใช้แล้ว”" hint="-1 = ไม่มี"><Input type="number" value={c.pool.used_col} onChange={(e) => setC({ pool: { ...c.pool, used_col: num(e.target.value, -1) } })} /></Field>
-                  <Field label="คอลัมน์เรตติ้ง" hint="-1 = ไม่มี"><Input type="number" value={c.pool.rating_col} onChange={(e) => setC({ pool: { ...c.pool, rating_col: num(e.target.value, -1) } })} /></Field>
-                </div>
-                <Field className="mt-3" label="ข้ามแถวที่เรตติ้งมีคำว่า" hint="ใช้เป็นตัวเลือกสุดท้ายเมื่อไม่เหลือแถวอื่น"><Input value={c.pool.skip_rating} onChange={(e) => setC({ pool: { ...c.pool, skip_rating: e.target.value } })} /></Field>
-                <p className="mt-2 text-xs text-muted-foreground">เลขคอลัมน์นับจาก 0</p>
-              </div>
-            </CardBody>
-          </GlassCard>
-        </TabsContent>
-
-        <TabsContent value="style" className="pt-4">
-          <div className="grid grid-cols-[1fr_300px] gap-4">
-            <GlassCard>
-              <CardHeader>
-                <div>
-                  <CardTitle>สไตล์ข้อความบนวิดีโอ</CardTitle>
-                  <CardDesc>ค่ามาตรฐาน: ไม่มีกล่องหลังตัวอักษร ขอบ 10 px เงา 20 px สีขาว + แดงกุหลาบเฉพาะคำเน้น</CardDesc>
-                </div>
-                <Button variant="glass" size="sm" onClick={() => setC({ text: defaultText(text.font) })}>คืนค่ามาตรฐาน</Button>
-              </CardHeader>
-              <CardBody className="grid gap-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <Field label="ฟอนต์"><Input value={text.font} onChange={(e) => setC({ text: { ...text, font: e.target.value } })} /></Field>
-                  <Field label="ขอบ (px)"><Input type="number" value={text.stroke} onChange={(e) => setC({ text: { ...text, stroke: num(e.target.value, 10) } })} /></Field>
-                  <Field label="เงา (px)"><Input type="number" value={text.shadow} onChange={(e) => setC({ text: { ...text, shadow: num(e.target.value, 20) } })} /></Field>
-                  <Field label="สีหลัก"><Input value={text.white} onChange={(e) => setC({ text: { ...text, white: e.target.value } })} /></Field>
-                  <Field label="สีเน้น"><Input value={text.rose} onChange={(e) => setC({ text: { ...text, rose: e.target.value } })} /></Field>
-                </div>
-                <div>
-                  <div className="pb-2 text-[13px] font-medium text-muted-foreground">พื้นที่ปลอดภัยของข้อความ (px ที่ {c.width}×{c.height})</div>
-                  <div className="grid grid-cols-4 gap-4">
-                    {(["left", "right", "top", "bottom"] as const).map((k) => (
-                      <Field key={k} label={{ left: "ซ้าย", right: "ขวา", top: "บน", bottom: "ล่าง" }[k]}>
-                        <Input type="number" value={text.safe[k]} onChange={(e) => setC({ text: { ...text, safe: { ...text.safe, [k]: num(e.target.value) } } })} />
-                      </Field>
-                    ))}
-                  </div>
-                </div>
-              </CardBody>
-            </GlassCard>
-            <TextPreview c={c} />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="steps" className="pt-4">
-          <div className="grid gap-2.5">
-            {c.steps.map((s, i) => (
-              <GlassCard key={i}>
-                <div className="flex items-center gap-2 px-4 py-2.5">
-                  <button className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setOpen(open === i ? null : i)}>
-                    <span className="grid size-6 place-items-center rounded-full bg-foreground/10 text-xs font-semibold">{i + 1}</span>
-                    <span className="truncate text-sm font-medium">{s.label || s.key}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{s.key}</span>
-                    {s.kind === "ai" && <Bot className="size-3.5 text-rose" />}
-                    <Badge>{kinds.find((k) => k.id === s.kind)?.label}</Badge>
-                  </button>
-                  <Button variant="ghost" size="icon-sm" disabled={i === 0} onClick={() => { const a = [...c.steps]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; setC({ steps: a }); }}><ArrowUp /></Button>
-                  <Button variant="ghost" size="icon-sm" disabled={i === c.steps.length - 1} onClick={() => { const a = [...c.steps]; [a[i + 1], a[i]] = [a[i], a[i + 1]]; setC({ steps: a }); }}><ArrowDown /></Button>
-                  <Button variant="destructive" size="icon-sm" onClick={() => setC({ steps: c.steps.filter((_, k) => k !== i) })}><Trash2 /></Button>
-                </div>
-                <AnimatePresence initial={false}>
-                  {open === i && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                      <div className="grid gap-3 border-t border-[var(--glass-hairline)] px-4 pb-4 pt-3">
-                        <div className="grid grid-cols-3 gap-3">
-                          <Field label="รหัสขั้นตอน (ภาษาอังกฤษ)"><Input value={s.key} onChange={(e) => setStep(i, { key: e.target.value.replace(/\s+/g, "_") })} /></Field>
-                          <Field label="ชื่อที่แสดง"><Input value={s.label} onChange={(e) => setStep(i, { label: e.target.value })} /></Field>
-                          <Field label="ชนิด">
-                            <Select value={s.kind} onValueChange={(v) => setStep(i, { kind: v as StepKind })}>
-                              <SelectTrigger>{kinds.find((k) => k.id === s.kind)?.label}</SelectTrigger>
-                              <SelectContent>{kinds.map((k) => <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </Field>
-                        </div>
-                        <Field label="คำอธิบาย"><Input value={s.desc} onChange={(e) => setStep(i, { desc: e.target.value })} /></Field>
-                        {s.kind === "ai" && (
-                          <>
-                            <Field label="Prompt" hint="ตัวแปร: {key} {title} {ref} {brief} {script} {caption} {line_ids}"><Textarea rows={8} value={s.prompt} onChange={(e) => setStep(i, { prompt: e.target.value })} /></Field>
-                            <div className="grid grid-cols-2 gap-3">
-                              <Field label="เขียนคำตอบลงไฟล์" hint="เทียบกับโฟลเดอร์งาน"><Input className="font-mono text-[13px]" value={s.output_file} onChange={(e) => setStep(i, { output_file: e.target.value })} /></Field>
-                              <Field label="หรือรวมคีย์ระดับบนเข้าไฟล์ JSON"><Input className="font-mono text-[13px]" value={s.merge_into} onChange={(e) => setStep(i, { merge_into: e.target.value })} /></Field>
-                            </div>
-                          </>
-                        )}
-                        {s.kind === "ai" && (
-                          <Field label="agent ที่ตอบขั้นตอนนี้" hint="ใช้เมื่อคนกดรันทีละขั้นตอน (ในโหมด agent คุมทั้ง flow agent ตัวนั้นตอบเอง)">
-                            <Select value={s.agent || "default"} onValueChange={(v) => setStep(i, { agent: v === "default" ? "" : v })}>
-                              <SelectTrigger>{s.agent ? agents.find((a) => String(a.id) === s.agent)?.name ?? "ไม่พบ agent" : "agent ของโปรเจกต์ (ค่าเริ่มต้น)"}</SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="default">agent ของโปรเจกต์ (ค่าเริ่มต้น)</SelectItem>
-                                {agents.map((a) => (
-                                  <SelectItem key={a.id} value={String(a.id)}>
-                                    {a.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </Field>
-                        )}
-                        {(s.kind === "shell" || s.kind === "ai") && (
-                          <Field label={s.kind === "ai" ? "คำสั่งที่รันต่อหลังได้คำตอบ (ไม่บังคับ)" : "คำสั่ง (PowerShell, หนึ่งคำสั่งต่อบรรทัด, หยุดทันทีถ้าคำสั่งใดล้มเหลว)"}>
-                            <Textarea rows={5} className="console text-[12.5px]" value={s.cmd} onChange={(e) => setStep(i, { cmd: e.target.value })} spellCheck={false} />
-                          </Field>
-                        )}
-                        <div className="grid grid-cols-[1fr_auto_auto] items-end gap-5">
-                          <Field label="ภาพตัวอย่างในหน้าขั้นตอน (ไม่บังคับ)"><Input className="font-mono text-[13px]" value={s.preview} onChange={(e) => setStep(i, { preview: e.target.value })} /></Field>
-                          <label className="flex items-center gap-2 pb-1.5 text-sm"><Switch checked={s.gate} onCheckedChange={(v) => setStep(i, { gate: v })} /> ต้องตรวจก่อนไปต่อ</label>
-                          <label className="flex items-center gap-2 pb-1.5 text-sm"><Switch checked={s.gpu} onCheckedChange={(v) => setStep(i, { gpu: v })} /> ใช้การ์ดจอ</label>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </GlassCard>
-            ))}
-            <div>
-              <Button
-                variant="glass"
-                onClick={() => {
-                  setC({ steps: [...c.steps, { key: `step${c.steps.length + 1}`, label: "ขั้นตอนใหม่", desc: "", kind: "shell", cmd: "", prompt: "", output_file: "", merge_into: "", gate: false, gpu: false, preview: "", agent: "" }] });
-                  setOpen(c.steps.length);
-                }}
-              >
-                <Plus /> เพิ่มขั้นตอน
-              </Button>
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function TextPreview({ c }: { c: ProjectConfig }) {
-  const t = c.text ?? defaultText();
-  const W = 240;
-  const k = W / c.width;
-  const H = c.height * k;
-  const strokeStyle: React.CSSProperties = {
-    fontFamily: `"${t.font}", "IBM Plex Sans Thai", sans-serif`,
-    fontSize: 74 * k,
-    fontWeight: 700,
-    lineHeight: 1.3,
-    color: t.white,
-    paintOrder: "stroke fill",
-    WebkitTextStroke: `${Math.max(1, t.stroke * k)}px #0b0b10`,
-    textShadow: `0 0 ${t.shadow * k}px rgba(0,0,0,.85)`,
-    textAlign: "center",
-  };
-  return (
-    <GlassCard className="self-start p-3">
-      <div className="mx-auto overflow-hidden rounded-md" style={{ width: W, height: H }}>
-        <div className="relative size-full bg-[linear-gradient(170deg,var(--stage-a),var(--stage-b)_55%,var(--stage-c))]">
-          <div
-            className="absolute border border-dashed border-white/55"
-            style={{ left: t.safe.left * k, top: t.safe.top * k, width: (t.safe.right - t.safe.left) * k, height: (t.safe.bottom - t.safe.top) * k }}
-          />
-          <div className="absolute inset-x-0" style={{ top: 1180 * k, left: t.safe.left * k, right: (c.width - t.safe.right) * k }}>
-            <div style={strokeStyle}>
-              ใจเรากวัดแกว่งง่ายไหม
-              <br />
-              <span style={{ color: t.rose }}>ดัดใจให้ตรง</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <p className="pt-2 text-center text-xs text-muted-foreground">ตัวอย่างอัตราส่วนจริง เส้นประคือพื้นที่ปลอดภัย</p>
-    </GlassCard>
   );
 }

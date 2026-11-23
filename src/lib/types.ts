@@ -54,7 +54,15 @@ export interface ProjectConfig {
   run_mode: "steps" | "agent";
   flow_agent: string;
   flow_prompt: string;
+  /** what the channel's clips are about */
+  description?: string;
+  /** how clips are made */
+  renderer?: Renderer;
+  /** command that opens the studio (empty = the renderer's own) */
+  studio_cmd?: string;
 }
+
+export type Renderer = "remotion" | "hyperframes" | "manual";
 
 export interface Project {
   id: number;
@@ -154,6 +162,59 @@ export interface Agent {
   api_base: string;
   is_default: boolean;
   has_key: boolean;
+}
+
+export type AssetKind = "image" | "video" | "audio" | "file";
+
+export interface Asset {
+  id: number;
+  channel_id: number | null;
+  clip_id: number | null;
+  kind: AssetKind;
+  name: string;
+  path: string;
+  tags: string;
+  note: string;
+  source: "file" | "ai" | "library";
+  created_at: string;
+  exists: boolean;
+}
+
+export interface AffiliateLink {
+  id: number;
+  channel_id: number | null;
+  platform: string;
+  title: string;
+  url: string;
+  note: string;
+  tags: string;
+  created_at: string;
+  used: number;
+}
+
+export interface ClipAffiliate {
+  link: AffiliateLink;
+  placement: string;
+}
+
+export type SocialPlatform = "facebook" | "instagram" | "tiktok" | "x" | "youtube";
+
+export interface SocialAccount {
+  id: number;
+  channel_id: number | null;
+  platform: SocialPlatform;
+  name: string;
+  handle: string;
+  url: string;
+  created_at: string;
+  has_token: boolean;
+}
+
+export interface ProviderStatus {
+  id: string;
+  ok: boolean;
+  detail: string;
+  version: string;
 }
 
 export interface TestResult {

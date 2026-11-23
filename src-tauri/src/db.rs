@@ -70,6 +70,47 @@ CREATE TABLE IF NOT EXISTS agents (
   created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_clips_project ON clips(project_id, status);
+-- files used by clips. clip_id NULL = the shared assets library; channel_id NULL = shared by every channel
+CREATE TABLE IF NOT EXISTS assets (
+  id         INTEGER PRIMARY KEY,
+  channel_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+  clip_id    INTEGER REFERENCES clips(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL DEFAULT 'file',
+  name       TEXT NOT NULL,
+  path       TEXT NOT NULL,
+  tags       TEXT NOT NULL DEFAULT '',
+  note       TEXT NOT NULL DEFAULT '',
+  source     TEXT NOT NULL DEFAULT 'file',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_assets_scope ON assets(channel_id, clip_id);
+-- affiliate links library; channel_id NULL = usable in every channel
+CREATE TABLE IF NOT EXISTS affiliate_links (
+  id         INTEGER PRIMARY KEY,
+  channel_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  platform   TEXT NOT NULL DEFAULT 'other',
+  title      TEXT NOT NULL DEFAULT '',
+  url        TEXT NOT NULL,
+  note       TEXT NOT NULL DEFAULT '',
+  tags       TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS clip_affiliates (
+  clip_id   INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+  link_id   INTEGER NOT NULL REFERENCES affiliate_links(id) ON DELETE CASCADE,
+  placement TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (clip_id, link_id)
+);
+-- social media accounts a channel posts to (tokens live in the Windows Credential Manager)
+CREATE TABLE IF NOT EXISTS social_accounts (
+  id         INTEGER PRIMARY KEY,
+  channel_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+  platform   TEXT NOT NULL,
+  name       TEXT NOT NULL DEFAULT '',
+  handle     TEXT NOT NULL DEFAULT '',
+  url        TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 "#;
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {

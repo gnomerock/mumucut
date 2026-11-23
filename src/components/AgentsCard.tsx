@@ -26,7 +26,7 @@ const blank = (): Agent => ({
 });
 
 export default function AgentsCard() {
-  const { agents, refreshAgents, err, notify } = useApp();
+  const { agents, refreshAgents, err, notify, confirm } = useApp();
   const [edit, setEdit] = useState<Agent | null>(null);
   const [tests, setTests] = useState<Record<number, { busy?: boolean; ok?: boolean; text?: string }>>({});
 
@@ -94,7 +94,8 @@ export default function AgentsCard() {
                     size="icon-sm"
                     title="ลบ"
                     onClick={async () => {
-                      if (!window.confirm(`ลบ agent “${a.name}”?`)) return;
+                      const ok = await confirm({ title: `ลบ agent “${a.name}”?`, desc: "API key ของ agent นี้จะถูกลบออกจาก Windows Credential Manager ด้วย ช่องที่เลือก agent นี้ไว้จะกลับไปใช้ตัวค่าเริ่มต้น", confirmLabel: "ลบ agent" });
+                      if (!ok) return;
                       try {
                         await api.deleteAgent(a.id);
                         await refreshAgents();
@@ -128,6 +129,8 @@ export default function AgentsCard() {
     </GlassCard>
   );
 }
+
+export { EditDialog as AgentEditDialog, blank as blankAgent };
 
 function EditDialog({ agent, onClose, onSaved }: { agent: Agent | null; onClose: () => void; onSaved: (a: Agent) => Promise<void> }) {
   const { err } = useApp();

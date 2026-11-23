@@ -488,11 +488,18 @@ pub async fn run_flow<R: Runtime>(app: &AppHandle<R>, state: &AppState, clip_id:
             let dir = state.data_dir.join("run");
             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
             let cfg_path = dir.join(format!("mcp_{clip_id}.json"));
-            let conf = json!({"mcpServers": {"mumucut": {"type": "http", "url": url, "headers": {"Authorization": format!("Bearer {token}")}}}});
+            let mut conf = json!({"mcpServers": {"mumucut": {"type": "http", "url": url, "headers": {"Authorization": format!("Bearer {token}")}}}});
+            // ComfyUI MCP (Settings → AI providers → Image), only when the user switched it on
+            let comfy = crate::providers::comfy_mcp_server(state);
+            if let Some(s) = &comfy {
+                conf["mcpServers"]["comfyui"] = s.clone();
+                logger.line("info", "เปิดให้ agent ใช้ ComfyUI ผ่าน MCP");
+            }
             std::fs::write(&cfg_path, conf.to_string()).map_err(|e| e.to_string())?;
             cli.push_str(&format!(
-                " --strict-mcp-config --mcp-config \"{}\" --allowedTools \"mcp__mumucut\" --output-format stream-json --verbose",
-                cfg_path.display()
+                " --strict-mcp-config --mcp-config \"{}\" --allowedTools \"mcp__mumucut{}\" --output-format stream-json --verbose",
+                cfg_path.display(),
+                if comfy.is_some() { ",mcp__comfyui" } else { "" }
             ));
         }
         let env = vec![

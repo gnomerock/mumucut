@@ -1,21 +1,24 @@
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowUpCircle, Clapperboard, FolderCog, Library, LayoutDashboard, Moon, Settings as SettingsIcon, Sun, MonitorCog } from "lucide-react";
+import { ArrowUpCircle, Check, ChevronsUpDown, FolderKanban, Images, Link2, Moon, MonitorCog, Plus, Settings as SettingsIcon, SlidersHorizontal, Sun } from "lucide-react";
 import { useApp, type Page, type Theme } from "@/lib/store";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import Dashboard from "@/pages/Dashboard";
-import Clips from "@/pages/Clips";
-import LibraryPage from "@/pages/Library";
-import Projects from "@/pages/Projects";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { ChannelAvatar, Skeleton } from "@/components/common";
+import { ChannelWizard } from "@/components/ChannelWizard";
+import ProjectsPage from "@/pages/Projects";
+import ProjectPage from "@/pages/ProjectPage";
+import AssetsLibrary from "@/pages/AssetsLibrary";
+import AffiliateLibrary from "@/pages/AffiliateLibrary";
+import ChannelSettings from "@/pages/ChannelSettings";
 import SettingsPage from "@/pages/Settings";
-import ClipPage from "@/pages/ClipPage";
+import Onboarding from "@/pages/Onboarding";
 
 const nav: { id: Page; label: string; icon: React.ReactNode }[] = [
-  { id: "dashboard", label: "ภาพรวม", icon: <LayoutDashboard /> },
-  { id: "clips", label: "คิวทำคลิป", icon: <Clapperboard /> },
-  { id: "library", label: "คลัง", icon: <Library /> },
-  { id: "projects", label: "โปรเจกต์", icon: <FolderCog /> },
-  { id: "settings", label: "ตั้งค่า", icon: <SettingsIcon /> },
+  { id: "projects", label: "Projects", icon: <FolderKanban /> },
+  { id: "assets", label: "Assets library", icon: <Images /> },
+  { id: "affiliates", label: "Affiliate library", icon: <Link2 /> },
+  { id: "settings", label: "Settings", icon: <SettingsIcon /> },
 ];
 
 const themes: { id: Theme; icon: React.ReactNode; label: string }[] = [
@@ -25,15 +28,33 @@ const themes: { id: Theme; icon: React.ReactNode; label: string }[] = [
 ];
 
 export default function App() {
-  const { page, go, clipId, projects, project, setProjectId, theme, setTheme, update } = useApp();
-  const showClip = clipId != null && (page === "clips" || page === "library");
+  const { page, go, clipId, projects, loading, theme, setTheme, update, wizardOpen, setWizardOpen } = useApp();
+
+  if (loading)
+    return (
+      <div className="grid h-full place-items-center">
+        <div className="ambient" />
+        <Skeleton className="h-10 w-48" />
+      </div>
+    );
+
+  if (projects.length === 0)
+    return (
+      <>
+        <div className="ambient" />
+        <Onboarding />
+      </>
+    );
+
+  const showProject = page === "projects" && clipId != null;
+  const key = showProject ? `clip-${clipId}` : page;
 
   return (
     <>
       <div className="ambient" />
       <div className="flex h-full gap-3 p-3">
-        <aside className="glass flex w-[212px] shrink-0 flex-col rounded-xl p-3">
-          <div className="flex items-center gap-2.5 px-2 pb-4 pt-1">
+        <aside className="glass flex w-[228px] shrink-0 flex-col rounded-xl p-3">
+          <div className="flex items-center gap-2.5 px-2 pb-3 pt-1">
             <img src="/icon.png" alt="" className="size-8 rounded-lg" />
             <div className="leading-tight">
               <div className="text-[15px] font-semibold tracking-tight">MumuCut</div>
@@ -41,28 +62,16 @@ export default function App() {
             </div>
           </div>
 
-          {projects.length > 0 && (
-            <div className="px-0.5 pb-3">
-              <Select value={String(project?.id ?? "")} onValueChange={(v) => setProjectId(Number(v))}>
-                <SelectTrigger className="h-9 text-[13px]">{project?.name}</SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <ChannelSwitcher />
 
-          <nav className="grid gap-0.5">
+          <nav className="mt-3 grid gap-0.5" aria-label="เมนูหลัก">
             {nav.map((n) => {
               const active = page === n.id;
               return (
                 <button
                   key={n.id}
                   onClick={() => go(n.id)}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
                     "soft relative flex h-9 items-center gap-2.5 rounded-md px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4",
                     active ? "text-foreground" : "text-muted-foreground hover:bg-[var(--glass-bg-subtle)] hover:text-foreground",
@@ -120,23 +129,23 @@ export default function App() {
         <main className="relative min-w-0 flex-1 overflow-hidden rounded-xl">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
-              key={showClip ? `clip-${clipId}` : page}
+              key={key}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.2, ease: [0.22, 0.61, 0.36, 1] }}
               className="h-full overflow-y-auto px-2 pb-6 pt-1"
             >
-              {showClip ? (
-                <ClipPage />
-              ) : page === "dashboard" ? (
-                <Dashboard />
-              ) : page === "clips" ? (
-                <Clips />
-              ) : page === "library" ? (
-                <LibraryPage />
+              {showProject ? (
+                <ProjectPage />
               ) : page === "projects" ? (
-                <Projects />
+                <ProjectsPage />
+              ) : page === "assets" ? (
+                <AssetsLibrary />
+              ) : page === "affiliates" ? (
+                <AffiliateLibrary />
+              ) : page === "channel" ? (
+                <ChannelSettings />
               ) : (
                 <SettingsPage />
               )}
@@ -144,6 +153,68 @@ export default function App() {
           </AnimatePresence>
         </main>
       </div>
+
+      <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+        <DialogContent className="w-[min(680px,94vw)]">
+          <div>
+            <DialogTitle>สร้างช่องใหม่</DialogTitle>
+            <DialogDescription>ช่องใหม่มีโปรเจกต์คลิป บัญชีโซเชียล และการตั้งค่า flow แยกจากช่องอื่น</DialogDescription>
+          </div>
+          {wizardOpen && <ChannelWizard onDone={() => setWizardOpen(false)} onCancel={() => setWizardOpen(false)} />}
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+function ChannelSwitcher() {
+  const { projects, project, setProjectId, go, setWizardOpen, clips } = useApp();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="soft glass-subtle flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none hover:bg-[var(--glass-bg)] focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="เลือกช่อง"
+        >
+          <ChannelAvatar name={project?.name ?? "?"} />
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="block text-[11px] text-muted-foreground">ช่อง</span>
+            <span className="block truncate text-sm font-semibold">{project?.name ?? "เลือกช่อง"}</span>
+          </span>
+          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[260px]">
+        <DropdownMenuLabel>ช่องทั้งหมด ({projects.length})</DropdownMenuLabel>
+        {projects.map((p) => (
+          <DropdownMenuItem
+            key={p.id}
+            onSelect={() => {
+              setProjectId(p.id);
+              go("projects");
+            }}
+          >
+            <ChannelAvatar name={p.name} size="sm" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{p.name}</span>
+              {p.config.description && <span className="block truncate text-xs text-muted-foreground">{p.config.description}</span>}
+            </span>
+            {p.id === project?.id && (
+              <>
+                <span className="text-xs text-muted-foreground">{clips.length}</span>
+                <Check className="text-foreground" />
+              </>
+            )}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setWizardOpen(true)}>
+          <Plus /> สร้างช่องใหม่
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => go("channel")} disabled={!project}>
+          <SlidersHorizontal /> ตั้งค่าช่องนี้
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

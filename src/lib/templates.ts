@@ -78,6 +78,9 @@ export const dhammaConfig = (_library = ""): ProjectConfig => ({
   run_mode: "agent",
   flow_agent: "",
   flow_prompt: "",
+  description: "คลิป 30 วินาที คาถาธรรมบทพร้อมความหมายง่าย ๆ สำหรับผู้สูงอายุ แนวหนังสือป๊อปอัปกระดาษพับ",
+  renderer: "remotion",
+  studio_cmd: "",
   steps: [
     step({ key: "pick", label: "เลือกหัวข้อ", kind: "pick", desc: "หยิบคาถาถัดไปที่ยังไม่ได้ใช้จากคลังหัวข้อ (ข้ามหัวข้อละเอียดอ่อน)" }),
     step({
@@ -174,8 +177,11 @@ export const blankConfig = (): ProjectConfig => ({
   run_mode: "steps",
   flow_agent: "",
   flow_prompt: "",
+  description: "",
+  renderer: "remotion",
+  studio_cmd: "",
   steps: [
-    step({ key: "idea", label: "ไอเดีย/หัวข้อ", kind: "manual", desc: "ใส่หัวข้อในแท็บ ข้อมูล แล้วกดยืนยัน" }),
+    step({ key: "idea", label: "ไอเดีย/หัวข้อ", kind: "manual", desc: "ใส่หัวข้อในแท็บ Scripts แล้วกดยืนยัน" }),
     step({ key: "script", label: "เขียนบท", kind: "ai", desc: "AI เขียนบท", prompt: "เขียนบทคลิปสั้นไม่เกิน 30 วินาทีเรื่อง {title}\n{brief}\nตอบเป็น JSON อย่างเดียว", output_file: "{key}_script.json" }),
     step({ key: "voice", label: "ทำเสียง", kind: "shell", gpu: true, desc: "ใส่คำสั่งทำเสียงของคุณ (หนึ่งคำสั่งต่อบรรทัด)" }),
     step({ key: "assets", label: "ภาพ", kind: "shell", gpu: true, gate: true, desc: "ใส่คำสั่งสร้างภาพ" }),

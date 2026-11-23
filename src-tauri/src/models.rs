@@ -106,6 +106,12 @@ pub struct Config {
     pub flow_agent: String,
     /// standing orders for the flow agent (empty = built-in text)
     pub flow_prompt: String,
+    /// what the channel's clips are about (shown under the channel name, given to the agent)
+    pub description: String,
+    /// how clips are made: "remotion" | "hyperframes" | "manual"
+    pub renderer: String,
+    /// command that opens the editor studio in the work folder (empty = the renderer's own)
+    pub studio_cmd: String,
 }
 
 impl Default for Config {
@@ -126,6 +132,9 @@ impl Default for Config {
             run_mode: "steps".into(),
             flow_agent: String::new(),
             flow_prompt: String::new(),
+            description: String::new(),
+            renderer: "remotion".into(),
+            studio_cmd: String::new(),
         }
     }
 }
@@ -259,6 +268,63 @@ pub struct Agent {
     pub is_default: bool,
     /// an API key is stored in the credential manager
     pub has_key: bool,
+}
+
+/// A file used by clips: an image, video, audio or any other file.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct Asset {
+    pub id: i64,
+    pub channel_id: Option<i64>,
+    pub clip_id: Option<i64>,
+    /// image | video | audio | file
+    pub kind: String,
+    pub name: String,
+    pub path: String,
+    pub tags: String,
+    pub note: String,
+    /// file | ai | library
+    pub source: String,
+    pub created_at: String,
+    pub exists: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct AffiliateLink {
+    pub id: i64,
+    pub channel_id: Option<i64>,
+    /// shopee | lazada | amazon | g2a | tiktok | aliexpress | other
+    pub platform: String,
+    pub title: String,
+    pub url: String,
+    pub note: String,
+    pub tags: String,
+    pub created_at: String,
+    /// how many clips use this link
+    pub used: i64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct ClipAffiliate {
+    pub link: AffiliateLink,
+    /// where the link goes, e.g. "facebook,youtube" or a free note
+    pub placement: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct SocialAccount {
+    pub id: i64,
+    pub channel_id: Option<i64>,
+    /// facebook | instagram | tiktok | x | youtube
+    pub platform: String,
+    pub name: String,
+    pub handle: String,
+    pub url: String,
+    pub created_at: String,
+    /// an access token is stored in the credential manager
+    pub has_token: bool,
 }
 
 #[derive(Serialize, Clone, Debug)]

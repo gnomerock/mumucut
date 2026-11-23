@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Check, Download, Palette, RefreshCw, Wrench, X } from "lucide-react";
-import { useApp, type Theme } from "@/lib/store";
-import { api, isTauri } from "@/lib/api";
+import { Bot, Check, Download, FolderOpen, Plug, RefreshCw, SlidersHorizontal, Wrench, X } from "lucide-react";
+import { useApp, type Lang, type OpenTo, type Theme } from "@/lib/store";
+import { api, isTauri, pickFolder, projectsRoot } from "@/lib/api";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import type { ToolStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { CardBody, CardDesc, CardHeader, CardTitle, GlassCard } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/input";
+import ProvidersPanel from "@/components/ProvidersPanel";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
@@ -30,6 +32,127 @@ function SaveInput({ k, placeholder, mono = true }: { k: string; placeholder?: s
   );
 }
 
+const openToOptions: { id: OpenTo; label: string }[] = [
+  { id: "projects", label: "Projects" },
+  { id: "last", label: "หน้าที่เปิดค้างไว้ล่าสุด" },
+  { id: "assets", label: "Assets library" },
+  { id: "affiliates", label: "Affiliate library" },
+  { id: "settings", label: "Settings" },
+];
+
+const langOptions: { id: Lang; label: string; ready: boolean }[] = [
+  { id: "system", label: "ตามระบบ", ready: true },
+  { id: "th", label: "ไทย", ready: true },
+  { id: "en", label: "English (ยังไม่มีคำแปล)", ready: false },
+];
+
+function Row({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-4 px-5 py-3.5">
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-xs text-muted-foreground">{desc}</div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+/** Settings → ทั่วไป: where the app opens, language, default project folder, theme. */
+function GeneralCard({ themes, theme, setTheme }: { themes: { id: Theme; label: string }[]; theme: Theme; setTheme: (t: Theme) => void }) {
+  const { settings, setSetting, err, notify } = useApp();
+  const [openTo, setOpenTo] = useState<OpenTo>((localStorage.getItem("open_to") as OpenTo) || "projects");
+  const [lang, setLang] = useState<Lang>((localStorage.getItem("lang") as Lang) || "system");
+  const [root, setRoot] = useState("");
+  useEffect(() => {
+    void projectsRoot(settings.projects_root).then(setRoot);
+  }, [settings.projects_root]);
+  const custom = !!settings.projects_root?.trim();
+  return (
+    <section className="grid max-w-[920px] gap-2">
+      <h3 className="text-[15px] font-semibold">ทั่วไป</h3>
+      <div className="glass divide-y divide-[var(--glass-hairline)] overflow-hidden rounded-xl">
+        <Row title="เปิดแอปที่" desc="หน้าแรกที่เห็นตอนเปิด MumuCut">
+          <div className="w-56">
+            <Select
+              value={openTo}
+              onValueChange={(v) => {
+                const o = v as OpenTo;
+                setOpenTo(o);
+                localStorage.setItem("open_to", o);
+                setSetting("open_to", o).catch(err);
+              }}
+            >
+              <SelectTrigger className="h-8 text-[13px]">{openToOptions.find((o) => o.id === openTo)?.label}</SelectTrigger>
+              <SelectContent>{openToOptions.map((o) => <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        </Row>
+        <Row title="ภาษา" desc={`ตอนนี้หน้าจอมีภาษาไทยภาษาเดียว${lang === "system" && !navigator.language.startsWith("th") ? ` (ระบบเป็น ${navigator.language} จึงแสดงภาษาไทยไปก่อน)` : ""}`}>
+          <div className="w-56">
+            <Select
+              value={lang}
+              onValueChange={(v) => {
+                const l = v as Lang;
+                setLang(l);
+                localStorage.setItem("lang", l);
+                setSetting("lang", l).catch(err);
+              }}
+            >
+              <SelectTrigger className="h-8 text-[13px]">{langOptions.find((o) => o.id === lang)?.label}</SelectTrigger>
+              <SelectContent>
+                {langOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id} disabled={!o.ready}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Row>
+        <Row title="ที่เก็บโปรเจกต์" desc="ช่องใหม่จะสร้างโฟลเดอร์ไว้ที่นี่ตามค่าเริ่มต้น (ช่องเดิมไม่ย้าย)">
+          <span className="max-w-[320px] truncate font-mono text-xs text-muted-foreground" title={root} dir="rtl">
+            {root}
+          </span>
+          {custom && (
+            <Button variant="ghost" size="sm" onClick={() => setSetting("projects_root", "").then(() => notify("กลับไปใช้ Documents\\MumuCut")).catch(err)}>
+              ค่าเริ่มต้น
+            </Button>
+          )}
+          <Button
+            variant="glass"
+            size="sm"
+            onClick={async () => {
+              const f = await pickFolder();
+              if (!f) {
+                if (!isTauri) notify("เลือกโฟลเดอร์ได้เฉพาะในแอป", "info");
+                return;
+              }
+              try {
+                await setSetting("projects_root", f);
+                notify(`ช่องใหม่จะสร้างที่\n${f}`);
+              } catch (e) {
+                err(e);
+              }
+            }}
+          >
+            <FolderOpen /> เปลี่ยน
+          </Button>
+        </Row>
+        <Row title="ธีม" desc="สีของหน้าจอ">
+          <div className="glass-subtle inline-flex rounded-md p-0.5">
+            {themes.map((t) => (
+              <button key={t.id} onClick={() => setTheme(t.id)} className={cn("soft h-7 rounded-sm px-3.5 text-[13px] font-medium", theme === t.id ? "bg-[var(--glass-bg-strong)]" : "text-muted-foreground hover:text-foreground")}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+      </div>
+    </section>
+  );
+}
+
 export default function SettingsPage() {
   const { theme, setTheme, settings, setSetting, err, update, checkUpdate } = useApp();
   const [version, setVersion] = useState("");
@@ -40,6 +163,12 @@ export default function SettingsPage() {
   }, []);
   const [tools, setTools] = useState<ToolStatus[] | null>(null);
   const [checking, setChecking] = useState(false);
+  const [sec, setSec] = useState<"providers" | "agents" | "general">("providers");
+  const sections = [
+    { id: "providers" as const, label: "AI providers", icon: <Plug /> },
+    { id: "agents" as const, label: "AI agents", icon: <Bot /> },
+    { id: "general" as const, label: "ทั่วไป", icon: <SlidersHorizontal /> },
+  ];
 
   const check = useCallback(async () => {
     setChecking(true);
@@ -63,22 +192,31 @@ export default function SettingsPage() {
 
   return (
     <div className="grid gap-4 pb-4">
-      <PageHeader title="ตั้งค่า" desc={isTauri ? "ค่าทั้งหมดเก็บในเครื่องนี้ (SQLite) ส่วน API key เก็บใน Windows Credential Manager" : "โหมดดูตัวอย่างในเบราว์เซอร์ ข้อมูลเป็นตัวอย่าง"} />
+      <PageHeader title="Settings" desc={isTauri ? "ผู้ให้บริการ AI สำหรับข้อความ ภาพ วิดีโอ และเสียง ค่าเก็บในเครื่องนี้ ส่วน API key เก็บใน Windows Credential Manager" : "โหมดดูตัวอย่างในเบราว์เซอร์ ข้อมูลเป็นตัวอย่าง"} />
 
-      <GlassCard>
-        <CardHeader>
-          <div className="flex items-center gap-2.5"><Palette className="size-4" /><CardTitle>หน้าตา</CardTitle></div>
-        </CardHeader>
-        <CardBody className="pt-3">
-          <div className="glass-subtle inline-flex rounded-md p-0.5">
-            {themes.map((t) => (
-              <button key={t.id} onClick={() => setTheme(t.id)} className={cn("soft h-8 rounded-sm px-4 text-[13px] font-medium", theme === t.id ? "bg-[var(--glass-bg-strong)]" : "text-muted-foreground hover:text-foreground")}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </CardBody>
-      </GlassCard>
+      <div className="glass-subtle flex w-fit gap-0.5 rounded-lg p-1" role="tablist" aria-label="หมวดการตั้งค่า">
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            role="tab"
+            aria-selected={sec === s.id}
+            onClick={() => setSec(s.id)}
+            className={cn(
+              "soft flex h-9 items-center gap-2 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-4",
+              sec === s.id ? "bg-[var(--glass-bg-strong)] text-foreground shadow-sm ring-1 ring-[var(--glass-hairline)]" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {s.icon}
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {sec === "providers" && <ProvidersPanel onOpenAgents={() => setSec("agents")} />}
+      {sec === "agents" && <AgentsCard />}
+      {sec === "general" && (
+      <div className="grid max-w-[920px] gap-4">
+      <GeneralCard themes={themes} theme={theme} setTheme={setTheme} />
 
       <GlassCard>
         <CardHeader>
@@ -133,8 +271,6 @@ export default function SettingsPage() {
         </CardBody>
       </GlassCard>
 
-      <AgentsCard />
-
       <GlassCard>
         <CardHeader>
           <div>
@@ -149,8 +285,6 @@ export default function SettingsPage() {
           <div className="grid grid-cols-2 gap-4">
             <Field label="โฟลเดอร์ Node.js"><SaveInput k="node_dir" placeholder="C:\Users\…\fnm\node-versions\v24.13.0\installation" /></Field>
             <Field label="โฟลเดอร์ ffmpeg (ที่มี ffmpeg.exe และ ffprobe.exe)"><SaveInput k="ffmpeg_dir" placeholder="ไม่ต้องใส่ถ้าอยู่ใน PATH" /></Field>
-            <Field label="พอร์ต ComfyUI"><SaveInput k="comfy_port" placeholder="8188" /></Field>
-            <Field label="พอร์ต VoiceStudio"><SaveInput k="voice_port" placeholder="3900" /></Field>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             {(tools ?? []).map((t, i) => (
@@ -171,6 +305,8 @@ export default function SettingsPage() {
           </div>
         </CardBody>
       </GlassCard>
+      </div>
+      )}
     </div>
   );
 }
